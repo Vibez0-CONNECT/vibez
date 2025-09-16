@@ -28,13 +28,15 @@ export function MobileChatLayout() {
       style={{ height: viewportHeight }}
     >
       {/* Top area: ChatList overlay (unchanged) */}
-      <motion.div
-        className="absolute inset-0"
-        animate={{ x: selectedChat ? '-100%' : '0%' }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
-      >
-        <ChatList />
-      </motion.div>
+      {!selectedChat && (
+        <motion.div
+          className="absolute inset-0"
+          animate={{ x: selectedChat ? '-100%' : '0%' }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+        >
+          <ChatList />
+        </motion.div>
+      )}
 
       {/* Main chat area: only this scrolls! */}
       <div className="flex-1 min-h-0 relative overflow-y-auto">
