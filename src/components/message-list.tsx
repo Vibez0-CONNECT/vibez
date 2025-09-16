@@ -9,6 +9,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { MessageBubble } from './message-bubble';
 import { User, Message } from '@/lib/types';
+import { UserAvatar } from './user-avatar';
 
 
 const AI_USER_ID = 'gemini-ai-chat-bot-7a4b9c1d-f2e3-4d56-a1b2-c3d4e5f6a7b8';
