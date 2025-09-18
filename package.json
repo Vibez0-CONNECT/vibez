@@ -13,6 +13,7 @@
     "migrate": "node -r dotenv/config scripts/migrate-videos-to-cloudinary.js"
   },
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
     "@ducanh2912/next-pwa": "^10.2.7",
     "@genkit-ai/googleai": "^1.14.1",
     "@genkit-ai/next": "^1.14.1",
@@ -50,7 +51,7 @@
     "framer-motion": "^11.2.10",
     "genkit": "^1.14.1",
     "lucide-react": "^0.475.0",
-    "next": "15.3.3",
+    "next": "^15.5.3",
     "next-themes": "^0.3.0",
     "patch-package": "^8.0.0",
     "react": "^18.3.1",

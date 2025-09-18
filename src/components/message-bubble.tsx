@@ -265,7 +265,7 @@ function MessageBubble({ message, sender, isCurrentUser, progress, onCancelUploa
         
         {message.text && (
             <p className={cn(
-                "text-base whitespace-pre-wrap", 
+                "text-base whitespace-pre-wrap overflow-wrap break-word word-break break-word", 
                 (message.file) ? "mt-2 px-2 pb-1" : "",
                 message.deleted && "italic text-muted-foreground"
             )}>

@@ -130,20 +130,14 @@ const ChatViewComponent = ({
     }
     const newMessagesAdded = messages.length > prevMessagesLength.current;
 
-    if (newMessagesAdded && messages.length > 0) {
-        const lastMessage = messages[messages.length-1];
-        // If last message is from current user, scroll to bottom
-        if (lastMessage.senderId === currentUser?.uid) {
-            scrollToBottom();
-        } else if (!isAtBottom) {
-            setNewMessagesCount(prev => prev + (messages.length - prevMessagesLength.current));
-        } else {
-            scrollToBottom();
-        }
+    if (newMessagesAdded && isAtBottom) {
+        scrollToBottom();
+    } else if (newMessagesAdded && !isAtBottom) {
+        setNewMessagesCount(prev => prev + 1);
     }
     
     prevMessagesLength.current = messages.length;
-  }, [messages, isAtBottom, currentUser?.uid, chat, currentUser]);
+}, [messages, isAtBottom, chat, currentUser]);
   
   const handleFileSelect = async (file: File) => {
     const isImage = file.type.startsWith("image/");
@@ -347,8 +341,8 @@ const ChatViewComponent = ({
         </div>
       </header>
 
-      <div className="flex flex-col h-full min-h-0">
-        {/* Chat content area, scrollable above input */}
+      {/* FIXED THIS WRAPPER: Changed h-full to flex-1 and added relative */}
+      <div className="flex flex-1 flex-col min-h-0 relative">
         <div className="flex-1 min-h-0 overflow-y-auto relative">
          {chatBackground && (
           <div className="absolute inset-0 opacity-20 dark:opacity-10">
@@ -390,8 +384,7 @@ const ChatViewComponent = ({
         </div>
       )}
     </div>
-    {/* Message input sticky to bottom for mobile */}
-    <div className="sticky bottom-0 left-0 w-full bg-background z-30">
+    <div className="sticky bottom-0 left-0 w-full bg-background z-10">
       {replyToMessage && (
         <div className="p-2 px-4 border-t border-border/50 bg-background/50 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -414,7 +407,7 @@ const ChatViewComponent = ({
         isAiChat={isAIChat}
       />
     </div>
-    </div>
+  </div>
       
       {isGroupChat ? (
           <GroupProfileSheet 
