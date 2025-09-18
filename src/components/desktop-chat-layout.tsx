@@ -30,7 +30,7 @@ export function DesktopChatLayout() {
     <div className="h-screen w-full flex overflow-hidden">
       <Sidebar
         collapsible="icon"
-        className="backdrop-blur-xl border-r border-border/20"
+        className="backdrop-blur-xl border-r border-border/20 w-[22rem] max-w-[22rem] min-w-0 flex-shrink-0 flex-grow-0 overflow-x-hidden"
         style={desktopSidebarStyle}
       >
         <ChatList />

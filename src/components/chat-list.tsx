@@ -178,13 +178,13 @@ export function ChatList() {
   const usersForNewChat = allUsers.filter(u => u.uid !== currentUser?.uid && !(currentUser?.blockedUsers || []).includes(u.uid));
 
   const shouldShowAiChat = useMemo(() => {
-    return aiConversation.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return aiConversation.name?.toLowerCase().includes(searchTerm.toLowerCase());
   }, [aiConversation, searchTerm]);
 
   return (
     <>
-    <div className="flex h-dvh w-full flex-col bg-transparent">
-       <div className="p-4 border-b border-border/50 flex justify-between items-center gap-2">
+    <div className="flex flex-col h-full w-full max-w-[22rem] min-w-0 overflow-x-hidden bg-transparent" style={{boxSizing: 'border-box'}}>
+    <div className="flex-none p-4 border-b border-border/50 flex justify-between items-center gap-2">
          <VibezLogo className="group-[[data-sidebar-state=collapsed]]/sidebar:hidden" />
          <div className="flex-1 flex justify-center group-[[data-sidebar-state=collapsed]]/sidebar:hidden">
             {isWeatherVisible && <WeatherWidget />}
@@ -202,7 +202,7 @@ export function ChatList() {
          </NewChatDialog>
        </div>
 
-      <div className="px-4 py-2 border-b border-border/50">
+    <div className="flex-none px-4 py-2 border-b border-border/50">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
@@ -227,8 +227,8 @@ export function ChatList() {
         </div>
       </div>
       
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-1 p-2">
+            <ScrollArea className="flex-1 overflow-y-auto">
+                <div className="flex flex-col gap-1 p-2 w-full overflow-hidden">
             <div className="space-y-4">
             {favoriteChats.length > 0 && (
                 <div>
@@ -355,7 +355,7 @@ export function ChatList() {
         </div>
       </ScrollArea>
 
-        <div className="p-2 border-t border-border/50 mt-auto">
+    <div className="flex-none p-2 border-t border-border/50">
             <UserProfileMenu currentUser={currentUser} />
         </div>
     </div>
@@ -422,15 +422,15 @@ function ChatItem({ conversation, isSelected, currentUser, onSelect, onAction, o
      <motion.li
         variants={itemVariants}
         layout
-        className="list-none"
+        className="list-none w-full max-w-full min-w-0 overflow-x-hidden"
     >
-      <GlassCard
-        onClick={onSelect}
-        className={cn(
-          'relative group/chat-item flex w-full items-center gap-3 p-3 text-left transition-all cursor-pointer',
-          isSelected ? 'bg-primary/20 border-primary/50' : 'hover:bg-muted/10'
-        )}
-      >
+            <GlassCard
+                onClick={onSelect}
+                className={cn(
+                    'relative group/chat-item flex w-full max-w-full min-w-0 items-center gap-3 p-3 text-left transition-all cursor-pointer overflow-x-hidden',
+                    isSelected ? 'bg-primary/20 border-primary/50' : 'hover:bg-muted/10'
+                )}
+            >
         <UserAvatar 
             user={{
                 name: conversation.name || 'Unknown',
@@ -439,20 +439,19 @@ function ChatItem({ conversation, isSelected, currentUser, onSelect, onAction, o
             isFriend={isFriend}
             className="h-12 w-12 flex-shrink-0"
         />
-        
-        <div className="flex-1 overflow-hidden group-[[data-sidebar-state=collapsed]]/sidebar:hidden">
-            <div className="flex justify-between items-baseline">
-            <div className="flex items-center gap-2">
-                <p className="font-semibold truncate flex-grow">{conversation.name}</p>
-                {conversation.isFavorite && !isAiChat && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
-                {isAiChat && <Bot className="h-4 w-4 text-primary" />}
+        <div className="flex-1 min-w-0 max-w-full overflow-hidden group-[[data-sidebar-state=collapsed]]/sidebar:hidden">
+            <div className="flex justify-between items-baseline min-w-0 max-w-full">
+                <div className="flex items-center gap-2 min-w-0 max-w-full">
+                    <p className="font-semibold truncate flex-grow min-w-0 max-w-full overflow-hidden whitespace-nowrap">{conversation.name}</p>
+                    {conversation.isFavorite && !isAiChat && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />}
+                    {isAiChat && <Bot className="h-4 w-4 text-primary" />}
+                </div>
+                <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground flex-shrink-0">{timestamp}</p>
+                </div>
             </div>
-            <div className="flex items-center gap-2">
-                <p className="text-xs text-muted-foreground flex-shrink-0">{timestamp}</p>
-            </div>
-            </div>
-            <div className="flex justify-between items-start gap-2">
-                <p className="text-sm text-muted-foreground truncate flex-grow">
+            <div className="flex justify-between items-start gap-2 min-w-0 max-w-full">
+                    <p className="text-sm text-muted-foreground line-clamp-1 break-words overflow-hidden min-w-0 max-w-full chat-list-force-break">
                     {text}
                 </p>
                 {conversation.unreadCount && conversation.unreadCount > 0 ? (

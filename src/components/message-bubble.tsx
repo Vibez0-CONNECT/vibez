@@ -263,15 +263,15 @@ function MessageBubble({ message, sender, isCurrentUser, progress, onCancelUploa
 
         {renderMessageContent()}
         
-        {message.text && (
-            <p className={cn(
-                "text-base whitespace-pre-wrap overflow-wrap break-word word-break break-word", 
-                (message.file) ? "mt-2 px-2 pb-1" : "",
-                message.deleted && "italic text-muted-foreground"
-            )}>
-                {message.text}
-            </p>
-        )}
+    {message.text && (
+      <p className={cn(
+        "text-base whitespace-pre-wrap break-words chat-list-force-break",
+        (message.file) ? "mt-2 px-2 pb-1" : "",
+        message.deleted && "italic text-muted-foreground"
+      )}>
+        {message.text}
+      </p>
+    )}
 
         {message.reactions && message.reactions.length > 0 && (
             <div className={cn(

@@ -1,4 +1,6 @@
 
+/* stylelint-disable at-rule-no-unknown, declaration-block-no-duplicate-properties */
+/* Allow Tailwind/JIT @rules in editor/linters (these are handled by PostCSS/Tailwind at build time) */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=PT+Sans:wght@400;700&display=swap');
 
 @tailwind base;
@@ -122,10 +124,11 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
@@ -160,4 +163,10 @@
       white-space: nowrap;
       border-width: 0;
     }
+}
+
+/* Force breaking of very long tokens in chat previews to avoid layout overflow */
+.chat-list-force-break {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }

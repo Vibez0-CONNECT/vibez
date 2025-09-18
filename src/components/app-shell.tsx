@@ -1,5 +1,6 @@
 
-'use client';
+"use client";
+import '../styles/glass-theme.css';
 import {
   addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query,
   runTransaction, serverTimestamp, Timestamp, updateDoc, where, writeBatch, limit, startAfter, setDoc
@@ -120,6 +121,11 @@ function useChatData() {
   const [previewStoryFile, setPreviewStoryFile] = useState<File | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
+// DEBUG LOGGING
+useEffect(() => {
+  console.log('[AppShell] selectedChat:', selectedChat);
+  console.log('[AppShell] messages:', messages);
+}, [selectedChat, messages]);
   const [firstMessageDoc, setFirstMessageDoc] = useState<any>(null);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -154,8 +160,8 @@ function useChatData() {
             if(userData.background) {
               setAppBackground(userData.background);
             }
-            if(userData.hasOwnProperty('useCustomBackground')) {
-              setUseCustomBackground(userData.useCustomBackground);
+              if(userData.hasOwnProperty('useCustomBackground')) {
+              setUseCustomBackground(userData.useCustomBackground ?? false);
             }
         }
     });
@@ -241,14 +247,21 @@ function useChatData() {
   }, [authUser, usersCache, getParticipantDetails]);
   
   useEffect(() => {
-     if (newlyCreatedChatId) {
-        const newChat = conversations.find(c => c.id === newlyCreatedChatId);
-        if (newChat) {
-          handleChatSelect(newChat.id);
-          setNewlyCreatedChatId(null);
-        }
-      }
+    if (newlyCreatedChatId) {
+       const newChat = conversations.find(c => c.id === newlyCreatedChatId);
+       if (newChat) {
+         handleChatSelect(newChat.id);
+         setNewlyCreatedChatId(null);
+       }
+     }
   }, [conversations, newlyCreatedChatId]);
+
+  // Sync messages with aiConversation when AI chat is selected
+  useEffect(() => {
+    if (selectedChat && selectedChat.id === AI_USER_ID) {
+      setMessages(aiConversation.messages || []);
+    }
+  }, [aiConversation, selectedChat]);
 
 
   // Message fetching logic
@@ -1160,8 +1173,8 @@ function useChatData() {
 
   const usersWithStories = allUsers.filter(u => stories.some(s => s.ownerId === u.uid));
   
-  const handleCreateStoryFromFile = (file: File, caption: string) => {
-    handleCreateStory(file, caption);
+  const handleCreateStoryFromFile = async (file: File, caption: string) => {
+    return handleCreateStory(file, caption);
   };
 
   const handleClearChat = useCallback(async (conversationId: string) => {
@@ -1266,7 +1279,7 @@ function AppBackground() {
   const isMobile = useIsMobile();
 
   if (!useCustomBackground) {
-    return <div className="absolute inset-0 bg-black" />;
+    return <div className="absolute inset-0 bg-background" />;
   }
 
   switch(appBackground) {
@@ -1285,6 +1298,10 @@ function AppBackground() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const chatData = useChatData();
+  // DEBUG LOGGING
+  console.log('[AppShell Render] selectedChat:', chatData.selectedChat);
+  console.log('[AppShell Render] messages:', chatData.messages);
+  console.log('[AppShell Render] currentUser:', chatData.currentUser);
   
   return (
     <AppShellContext.Provider value={chatData}>
