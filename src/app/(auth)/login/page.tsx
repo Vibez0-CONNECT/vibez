@@ -8,7 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import React, { useEffect, useState } from 'react';
-import { doc, runTransaction, serverTimestamp, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, runTransaction, serverTimestamp, updateDoc, getDoc, collection, setDoc } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 
 import { auth, db } from '@/lib/firebase';
@@ -132,12 +132,16 @@ export default function LoginPage() {
           }
         });
 
-        // After the transaction, update the server timestamp for the current device.
-        const updatedDoc = await getDoc(userDocRef);
-        const finalDevices = (updatedDoc.data()?.devices || []).map((d: any) => 
-            d.id === deviceId ? { ...d, loggedInAt: serverTimestamp() } : d
-        );
-        await updateDoc(userDocRef, { devices: finalDevices });
+        // Instead of placing serverTimestamp() inside the parent array (unsupported),
+        // create/update a device document under users/{uid}/devices/{deviceId} so we can
+        // safely use serverTimestamp() on a document field.
+        const devicesCol = collection(db, 'users', res.user.uid, 'devices');
+        const deviceDocRef = doc(devicesCol, deviceId);
+        await setDoc(deviceDocRef, {
+          id: deviceId,
+          type: 'web',
+          loggedInAt: serverTimestamp(),
+        });
 
         router.push('/');
       }

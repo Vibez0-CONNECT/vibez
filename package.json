@@ -9,8 +9,9 @@
     "build:next": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "migrate": "node -r dotenv/config scripts/migrate-videos-to-cloudinary.js"
+  "typecheck": "tsc --noEmit",
+  "migrate": "node -r dotenv/config scripts/migrate-videos-to-cloudinary.js",
+  "migrate:devices": "node -r dotenv/config scripts/migrate-devices-to-subcollection.js"
   },
   "dependencies": {
     "@dataconnect/generated": "file:src/dataconnect-generated",

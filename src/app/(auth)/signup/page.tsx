@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCreateUserWithEmailAndPassword, useUpdateProfile } from 'react-firebase-hooks/auth';
-import { doc, setDoc, serverTimestamp, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, updateDoc, getDoc } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -99,14 +99,16 @@ export default function SignupPage() {
           mutedConversations: [],
         });
 
-        // After the document is created, update it with the server timestamp.
-        // This is the correct pattern to avoid the "serverTimestamp in array" error.
-        const userDoc = await getDoc(userDocRef);
-        const existingDevices = userDoc.data()?.devices || [];
-        const updatedDevices = existingDevices.map((d: any) => 
-            d.id === deviceId ? { ...d, loggedInAt: serverTimestamp() } : d
-        );
-        await updateDoc(userDocRef, { devices: updatedDevices });
+        // Instead of placing serverTimestamp() inside an array (not supported),
+        // create a device document under users/{uid}/devices/{deviceId} so we can
+        // safely use serverTimestamp() on a document field.
+        const devicesCol = collection(db, 'users', res.user.uid, 'devices');
+        const deviceDocRef = doc(devicesCol, deviceId);
+        await setDoc(deviceDocRef, {
+          id: deviceId,
+          type: 'web',
+          loggedInAt: serverTimestamp(),
+        });
 
         router.push('/');
       }

@@ -23,7 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Separator } from './ui/separator';
 import { useTheme } from 'next-themes';
 import { GlassCard } from './ui/cards/GlassCard';
-import { doc, getDoc, updateDoc, arrayRemove } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayRemove, collection, deleteDoc, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useAppShell } from './app-shell';
@@ -58,21 +58,22 @@ function UserProfileMenu({ currentUser }: { currentUser?: User }) {
     const handleLogout = async () => {
         const deviceId = localStorage.getItem('deviceId');
         if (deviceId && currentUser) {
-            const userDocRef = doc(db, 'users', currentUser.uid);
             try {
-                const userDoc = await getDoc(userDocRef);
-                if (userDoc.exists()) {
-                    const userData = userDoc.data() as User;
-                    const currentDevices = userData.devices || [];
-                    const updatedDevices = currentDevices.filter(d => d.id !== deviceId);
-                    
-                    await updateDoc(userDocRef, {
-                        devices: updatedDevices,
-                        status: updatedDevices.length > 0 ? 'online' : 'offline',
-                    });
-                }
+                // Delete the per-device document from the devices subcollection
+                const deviceDocRef = doc(db, 'users', currentUser.uid, 'devices', deviceId);
+                await deleteDoc(deviceDocRef);
+
+                // Recalculate remaining device docs to determine online/offline
+                const devicesCol = collection(db, 'users', currentUser.uid, 'devices');
+                const snapshots = await getDocs(devicesCol);
+                const remaining = snapshots.docs.length;
+
+                const userDocRef = doc(db, 'users', currentUser.uid);
+                await updateDoc(userDocRef, {
+                    status: remaining > 0 ? 'online' : 'offline',
+                });
             } catch (error) {
-                console.error("Error updating device status on logout:", error);
+                console.error("Error removing device doc on logout:", error);
                 toast({
                     title: "Logout Error",
                     description: "Could not update your device status, but you will be logged out.",
