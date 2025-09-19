@@ -76,7 +76,7 @@ export function NewChatDialog({ users, onCreateChat, onCreateGroupChat, children
             // Fallback to client-side filtering for both email and name searches
             const filtered = publicUsers.filter(user => {
                 const searchLower = term.toLowerCase();
-                return user.name.toLowerCase().includes(searchLower) ||
+                return (user.name && user.name.toLowerCase().includes(searchLower)) ||
                        (user.email && user.email.toLowerCase().includes(searchLower));
             });
             setSearchResults(filtered);
@@ -96,7 +96,7 @@ export function NewChatDialog({ users, onCreateChat, onCreateGroupChat, children
         // Fallback to client-side search if Firebase fails
         const filtered = publicUsers.filter(user => {
             const searchLower = term.toLowerCase();
-            return user.name.toLowerCase().includes(searchLower) ||
+            return (user.name && user.name.toLowerCase().includes(searchLower)) ||
                    (user.email && user.email.toLowerCase().includes(searchLower));
         });
         setSearchResults(filtered);
