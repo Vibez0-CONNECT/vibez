@@ -36,6 +36,8 @@ console.log('Firebase config loading:', {
   hasApiKey: !!firebaseConfig.apiKey,
   hasAuthDomain: !!firebaseConfig.authDomain,
   hasProjectId: !!firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain,
+  currentDomain: typeof window !== 'undefined' ? window.location.hostname : 'server',
   apiKeyPrefix: firebaseConfig.apiKey?.substring(0, 5),
 });
 
@@ -43,6 +45,12 @@ console.log('Firebase config loading:', {
 if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('AIza')) {
   console.error('Invalid Firebase API key format. API key should start with "AIza"');
   throw new Error('Invalid Firebase API key format');
+}
+
+// Log current domain for debugging
+if (typeof window !== 'undefined') {
+  console.log('Current domain:', window.location.hostname);
+  console.log('Current origin:', window.location.origin);
 }
 
 // Initialize Firebase
