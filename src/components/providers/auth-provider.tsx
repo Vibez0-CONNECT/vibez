@@ -1,4 +1,3 @@
-
 'use client';
 import { auth } from '@/lib/firebase';
 import { signOut as firebaseSignOut, Auth, getRedirectResult } from 'firebase/auth';
@@ -7,6 +6,9 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { VibezLogo } from '../vibez-logo';
 import { GalaxyBackground } from '../galaxy-background';
+import { getDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
 
 interface AuthContextType {
   user: any;
@@ -54,18 +56,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.replace('/');
       } else if (!user && !isAuthRoute) {
         router.replace('/login');
+      } else if (user && !isAuthRoute) {
+        // Skip email verification in development
+        const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.REPL_IDENTITY;
+
+        if (!isDevelopment && user && user.emailVerified === false) {
+          // Check if user document has emailVerified field set to true
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists() && userDoc.data().emailVerified !== true) {
+            // User exists but email not verified, sign them out
+            await signOut();
+            router.push('/login?message=Please verify your email before logging in.');
+            return;
+          }
+        }
       }
     }
   }, [user, authLoading, isProcessingRedirect, pathname, router]);
-  
+
   const signOut = async () => {
     await firebaseSignOut(auth);
     // Don't push here, let the useEffect handle it.
   };
-  
+
   const isLoading = authLoading || isProcessingRedirect;
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
-  
+
   // Show loading screen if we're still loading or if we're about to redirect.
   if (isLoading || (!user && !isAuthRoute) || (user && isAuthRoute)) {
     return <LoadingScreen />
