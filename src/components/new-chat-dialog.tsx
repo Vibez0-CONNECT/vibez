@@ -57,7 +57,12 @@ export function NewChatDialog({ users, onCreateChat, onCreateGroupChat, children
     }
     setIsSearching(true);
     try {
-        if (isEmail(term)) {
+        // Check if Firebase is properly configured (not using demo values)
+        const isFirebaseConfigured = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && 
+                                    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID !== 'demo-project';
+        
+        if (isEmail(term) && isFirebaseConfigured) {
+            // Try Firebase search for email if properly configured
             const usersRef = collection(db, 'users');
             const q = query(usersRef, where('email', '==', term.toLowerCase()), limit(1));
             const querySnapshot = await getDocs(q);
@@ -67,17 +72,40 @@ export function NewChatDialog({ users, onCreateChat, onCreateGroupChat, children
                toast({ title: "User not found", description: "No user found with that exact email address.", variant: "destructive" });
             }
             setSearchResults(foundUsers);
-
         } else {
-            // Perform client-side filtering on the pre-fetched public users list
-            const filtered = publicUsers.filter(user => 
-                user.name.toLowerCase().includes(term.toLowerCase())
-            );
+            // Fallback to client-side filtering for both email and name searches
+            const filtered = publicUsers.filter(user => {
+                const searchLower = term.toLowerCase();
+                return user.name.toLowerCase().includes(searchLower) ||
+                       (user.email && user.email.toLowerCase().includes(searchLower));
+            });
             setSearchResults(filtered);
+            
+            if (filtered.length === 0) {
+                toast({ 
+                    title: "No results", 
+                    description: isEmail(term) ? 
+                        "No user found with that email address." : 
+                        "No users found matching your search.", 
+                    variant: "default" 
+                });
+            }
         }
     } catch (error) {
         console.error("Error searching users:", error);
-        toast({ title: "Search Error", description: "Could not perform search.", variant: "destructive" });
+        // Fallback to client-side search if Firebase fails
+        const filtered = publicUsers.filter(user => {
+            const searchLower = term.toLowerCase();
+            return user.name.toLowerCase().includes(searchLower) ||
+                   (user.email && user.email.toLowerCase().includes(searchLower));
+        });
+        setSearchResults(filtered);
+        
+        toast({ 
+            title: "Search completed", 
+            description: `Found ${filtered.length} users in local search.`, 
+            variant: "default" 
+        });
     } finally {
         setIsSearching(false);
     }
