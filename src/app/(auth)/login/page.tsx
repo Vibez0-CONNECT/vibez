@@ -163,12 +163,17 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     try {
-      // Use popup method explicitly
+      // Configure provider with proper settings
       const provider = new GoogleAuthProvider();
       provider.addScope('email');
       provider.addScope('profile');
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
       
+      console.log('Starting Google sign-in...');
       const res = await signInWithPopup(auth, provider);
+      console.log('Google sign-in result:', res);
       if (res && deviceId) {
         const userDocRef = doc(db, 'users', res.user.uid);
 

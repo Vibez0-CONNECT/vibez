@@ -8,7 +8,7 @@ expertMode = true
 integrations = ["replitmail:1.0.0"]
 
 [workflows]
-runButton = "Project"
+runButton = "Restart Dev Server"
 
 [[workflows.workflow]]
 name = "Project"
@@ -30,6 +30,19 @@ waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow]]
+name = "Restart Dev Server"
+author = 33174289
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pkill -f \"next dev\" || true"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
 
 [[ports]]
 localPort = 5000

@@ -31,6 +31,14 @@ if (missingConfig.length > 0) {
   throw new Error(`Missing Firebase configuration: ${missingConfig.join(', ')}. Please check your environment variables.`);
 }
 
+// Debug configuration loading
+console.log('Firebase config loading:', {
+  hasApiKey: !!firebaseConfig.apiKey,
+  hasAuthDomain: !!firebaseConfig.authDomain,
+  hasProjectId: !!firebaseConfig.projectId,
+  apiKeyPrefix: firebaseConfig.apiKey?.substring(0, 5),
+});
+
 // Validate API key format
 if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('AIza')) {
   console.error('Invalid Firebase API key format. API key should start with "AIza"');
