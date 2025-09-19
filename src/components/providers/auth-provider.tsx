@@ -18,7 +18,7 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_ROUTES = ['/login', '/signup'];
+const AUTH_ROUTES = ['/login', '/signup', '/verify-email'];
 
 function LoadingScreen() {
     return (
