@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import React, { useEffect, useState } from 'react';
 import { doc, runTransaction, serverTimestamp, updateDoc, getDoc, collection, setDoc } from 'firebase/firestore';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 import { auth, db } from '@/lib/firebase';
@@ -162,7 +163,12 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const res = await signInWithGoogle();
+      // Use popup method explicitly
+      const provider = new GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
+      
+      const res = await signInWithPopup(auth, provider);
       if (res && deviceId) {
         const userDocRef = doc(db, 'users', res.user.uid);
 

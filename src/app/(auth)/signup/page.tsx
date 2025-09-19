@@ -95,7 +95,12 @@ export default function SignupPage() {
 
   const handleGoogleSignup = async () => {
     try {
-      const result = await signInWithGoogle();
+      // Use popup method explicitly
+      const provider = new GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
+      
+      const result = await signInWithPopup(auth, provider);
       
       if (result?.user) {
         let deviceId = localStorage.getItem('deviceId');
