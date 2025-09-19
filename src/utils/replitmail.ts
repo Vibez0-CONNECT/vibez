@@ -30,15 +30,24 @@ export const zSmtpMessage = z.object({
 export type SmtpMessage = z.infer<typeof zSmtpMessage>
 
 function getAuthToken(): string {
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? "repl " + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-      ? "depl " + process.env.WEB_REPL_RENEWAL
+  // Check for environment variables on both server and client side
+  const replIdentity = typeof window !== 'undefined' 
+    ? null // Client side - tokens should not be exposed
+    : process.env.REPL_IDENTITY;
+    
+  const webReplRenewal = typeof window !== 'undefined'
+    ? null // Client side - tokens should not be exposed  
+    : process.env.WEB_REPL_RENEWAL;
+
+  const xReplitToken = replIdentity
+    ? "repl " + replIdentity
+    : webReplRenewal
+      ? "depl " + webReplRenewal
       : null;
 
   if (!xReplitToken) {
     throw new Error(
-      "No authentication token found. Please set REPL_IDENTITY or ensure you're running in Replit environment."
+      "No authentication token found. Please add REPL_IDENTITY to your Replit secrets."
     );
   }
 
