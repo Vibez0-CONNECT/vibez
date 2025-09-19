@@ -172,152 +172,87 @@ export default function SignupPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      // Check if REPL_IDENTITY is available for email sending
-      const canSendEmails = typeof window !== 'undefined' && window.location.hostname.includes('replit.dev');
+      // Always use email verification
+      const res = await createUserWithEmailAndPassword(
+        values.email,
+        values.password
+      );
       
-      if (!canSendEmails) {
-        // In development, create account without email verification
-        const res = await createUserWithEmailAndPassword(
-          values.email,
-          values.password
-        );
+      if (res) {
+        await updateProfile({ displayName: values.name });
         
-        if (res) {
-          await updateProfile({ displayName: values.name });
+        let deviceId = localStorage.getItem('deviceId');
+        if (!deviceId) {
+          deviceId = uuidv4();
+          localStorage.setItem('deviceId', deviceId);
+        }
+        
+        const deviceData = {
+          id: deviceId,
+          type: 'web',
+          loggedInAt: new Date(),
+        };
+
+        const userDocRef = doc(db, 'users', res.user.uid);
+
+        // Create user document with emailVerified: false
+        await setDoc(userDocRef, {
+          uid: res.user.uid,
+          name: values.name,
+          email: values.email,
+          photoURL: null,
+          status: 'online',
+          about: '',
+          devices: [deviceData],
+          background: 'galaxy',
+          useCustomBackground: true,
+          friends: [],
+          friendRequestsSent: [],
+          friendRequestsReceived: [],
+          blockedUsers: [],
+          mutedConversations: [],
+          emailVerified: false,
+        });
+
+        // Create device document with server timestamp
+        const devicesCol = collection(db, 'users', res.user.uid, 'devices');
+        const deviceDocRef = doc(devicesCol, deviceId);
+        await setDoc(deviceDocRef, {
+          id: deviceId,
+          type: 'web',
+          loggedInAt: serverTimestamp(),
+        });
+
+        // Generate verification code and send email
+        const verificationCode = generateVerificationCode();
+        
+        try {
+          await sendVerificationEmail(values.email, verificationCode);
           
-          let deviceId = localStorage.getItem('deviceId');
-          if (!deviceId) {
-            deviceId = uuidv4();
-            localStorage.setItem('deviceId', deviceId);
-          }
+          // Sign out the user so they can't access the app until verified
+          await auth.signOut();
           
-          const deviceData = {
-            id: deviceId,
-            type: 'web',
-            loggedInAt: new Date(),
-          };
-
-          const userDocRef = doc(db, 'users', res.user.uid);
-
-          // Create user document with emailVerified: true in development
-          await setDoc(userDocRef, {
-            uid: res.user.uid,
-            name: values.name,
-            email: values.email,
-            photoURL: null,
-            status: 'online',
-            about: '',
-            devices: [deviceData],
-            background: 'galaxy',
-            useCustomBackground: true,
-            friends: [],
-            friendRequestsSent: [],
-            friendRequestsReceived: [],
-            blockedUsers: [],
-            mutedConversations: [],
-            emailVerified: true, // Skip verification in development
-          });
-
-          // Create device document with server timestamp
-          const devicesCol = collection(db, 'users', res.user.uid, 'devices');
-          const deviceDocRef = doc(devicesCol, deviceId);
-          await setDoc(deviceDocRef, {
-            id: deviceId,
-            type: 'web',
-            loggedInAt: serverTimestamp(),
-          });
-
           toast({
             title: 'Account Created!',
-            description: 'Welcome to Vibez! (Development mode - email verification skipped)',
+            description: 'Please check your email for the verification code.',
           });
           
-          // Redirect to main app
+          // Redirect to verification page with email and code
+          router.push(`/verify-email?email=${encodeURIComponent(values.email)}&code=${verificationCode}`);
+        } catch (emailError) {
+          console.error('Error sending verification email:', emailError);
+          
+          // If email fails, mark user as verified and let them in
+          await updateDoc(userDocRef, {
+            emailVerified: true,
+          });
+          
+          toast({
+            title: 'Account Created!',
+            description: 'Email service unavailable, but your account is ready to use.',
+          });
+          
           router.push('/');
-        }
-      } else {
-        // Production flow with email verification
-        const res = await createUserWithEmailAndPassword(
-          values.email,
-          values.password
-        );
-        
-        if (res) {
-          await updateProfile({ displayName: values.name });
-          
-          let deviceId = localStorage.getItem('deviceId');
-          if (!deviceId) {
-            deviceId = uuidv4();
-            localStorage.setItem('deviceId', deviceId);
-          }
-          
-          const deviceData = {
-            id: deviceId,
-            type: 'web',
-            loggedInAt: new Date(),
-          };
-
-          const userDocRef = doc(db, 'users', res.user.uid);
-
-          // Create user document with emailVerified: false
-          await setDoc(userDocRef, {
-            uid: res.user.uid,
-            name: values.name,
-            email: values.email,
-            photoURL: null,
-            status: 'online',
-            about: '',
-            devices: [deviceData],
-            background: 'galaxy',
-            useCustomBackground: true,
-            friends: [],
-            friendRequestsSent: [],
-            friendRequestsReceived: [],
-            blockedUsers: [],
-            mutedConversations: [],
-            emailVerified: false,
-          });
-
-          // Create device document with server timestamp
-          const devicesCol = collection(db, 'users', res.user.uid, 'devices');
-          const deviceDocRef = doc(devicesCol, deviceId);
-          await setDoc(deviceDocRef, {
-            id: deviceId,
-            type: 'web',
-            loggedInAt: serverTimestamp(),
-          });
-
-          // Generate verification code and send email
-          const verificationCode = generateVerificationCode();
-          
-          try {
-            await sendVerificationEmail(values.email, verificationCode);
-            
-            // Sign out the user so they can't access the app until verified
-            await auth.signOut();
-            
-            toast({
-              title: 'Account Created!',
-              description: 'Please check your email for the verification code.',
-            });
-            
-            // Redirect to verification page with email and code
-            router.push(`/verify-email?email=${encodeURIComponent(values.email)}&code=${verificationCode}`);
-          } catch (emailError) {
-            console.error('Error sending verification email:', emailError);
-            
-            // If email fails, mark user as verified and let them in
-            await updateDoc(userDocRef, {
-              emailVerified: true,
-            });
-            
-            toast({
-              title: 'Account Created!',
-              description: 'Email service unavailable, but your account is ready to use.',
-            });
-            
-            router.push('/');
-          }
         }
       }
     } catch (error: any) {

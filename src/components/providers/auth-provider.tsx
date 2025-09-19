@@ -57,10 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (!user && !isAuthRoute) {
         router.replace('/login');
       } else if (user && !isAuthRoute) {
-        // Skip email verification in development
-        const isDevelopment = process.env.NODE_ENV === 'development' || !process.env.REPL_IDENTITY;
-
-        if (!isDevelopment && user && user.emailVerified === false) {
+        // Always enforce email verification
+        if (user && user.emailVerified === false) {
           // Check if user document has emailVerified field set to true
           const userDoc = await getDoc(doc(db, 'users', user.uid));
           if (userDoc.exists() && userDoc.data().emailVerified !== true) {
