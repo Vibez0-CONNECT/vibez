@@ -1,13 +1,11 @@
 'use client';
-import { auth } from '@/lib/firebase';
-import { signOut as firebaseSignOut, Auth, getRedirectResult } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { signOut as firebaseSignOut, Auth, getRedirectResult, onAuthStateChanged } from 'firebase/auth';
 import React, { createContext, ReactNode, useEffect, useState } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import { VibezLogo } from '../vibez-logo';
 import { GalaxyBackground } from '../galaxy-background';
 import { getDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 
 
 interface AuthContextType {
@@ -16,6 +14,8 @@ interface AuthContextType {
   error?: Error;
   signOut: () => Promise<void>;
   auth: Auth;
+  userProfile: any;
+  profileLoading: boolean;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,22 +34,88 @@ function LoadingScreen() {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, authLoading, error] = useAuthState(auth);
-  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
+
+  // Custom auth state listener
+  useEffect(() => {
+    console.log('[AuthProvider] Setting up auth state listener');
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      console.log('[AuthProvider] Auth state changed:', firebaseUser ? 'User logged in' : 'No user');
+      setUser(firebaseUser);
+      setLoading(false);
+      setError(null);
+    }, (authError) => {
+      console.error('[AuthProvider] Auth error:', authError);
+      setError(authError);
+      setUser(null);
+      setLoading(false);
+    });
+
+    return () => {
+      console.log('[AuthProvider] Cleaning up auth listener');
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    } else {
+      setUserProfile(null);
+      setProfileLoading(false);
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    setProfileLoading(true);
+    try {
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          setUserProfile(userDocSnap.data());
+        } else {
+          console.log("No such document!");
+          setUserProfile(null); // Ensure profile is null if doc doesn't exist
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching user profile:", err);
+      setError(err);
+      setUserProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
 
   useEffect(() => {
     // Check for redirect result on initial load
     getRedirectResult(auth)
+      .then((result) => {
+        // If there was a redirect, the onAuthStateChanged listener will handle the user update
+        // We just need to make sure we don't proceed with route protection until auth state is settled
+      })
+      .catch((error) => {
+        console.error("Error getting redirect result:", error);
+        setError(error);
+      })
       .finally(() => {
-        setIsProcessingRedirect(false);
+        // This is to ensure we don't show the loading screen indefinitely if getRedirectResult fails
+        // The actual loading state is managed by the onAuthStateChanged listener
       });
   }, []);
 
+
   useEffect(() => {
     const isAuthRoute = AUTH_ROUTES.includes(pathname);
-    const isLoading = authLoading || isProcessingRedirect;
+    const isLoading = loading || profileLoading;
 
     const handleAuth = async () => {
       if (!isLoading) {
@@ -74,14 +140,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     handleAuth();
-  }, [user, authLoading, isProcessingRedirect, pathname, router]);
+  }, [user, loading, profileLoading, pathname, router]);
 
   const signOut = async () => {
     await firebaseSignOut(auth);
-    // Don't push here, let the useEffect handle it.
+    // The onAuthStateChanged listener will update the user state.
+    // No need to manually redirect here as the useEffect will handle it.
   };
 
-  const isLoading = authLoading || isProcessingRedirect;
+  const isLoading = loading || profileLoading;
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
 
   // Show loading screen if we're still loading or if we're about to redirect.
@@ -90,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading: authLoading, error, signOut, auth }}>
+    <AuthContext.Provider value={{ user, loading: loading, error, signOut, auth, userProfile, profileLoading }}>
       {children}
     </AuthContext.Provider>
   );
