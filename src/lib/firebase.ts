@@ -74,4 +74,9 @@ if (typeof window !== 'undefined') {
 
 // Initialize Firestore
 export const db = getFirestore(app);
-export { storage, setDoc };
+
+// Initialize Firebase Storage
+export const storage = getStorage(app);
+
+// Export Firestore functions
+export { setDoc };
