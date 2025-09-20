@@ -58,16 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (!user && !isAuthRoute) {
           router.replace('/login');
         } else if (user && !isAuthRoute) {
-          // Always enforce email verification
-          if (user && user.emailVerified === false) {
-            // Check if user document has emailVerified field set to true
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            if (userDoc.exists() && userDoc.data().emailVerified !== true) {
-              // User exists but email not verified, sign them out
-              await signOut();
-              router.push('/login?message=Please verify your email before logging in.');
-              return;
-            }
+          // Always enforce email verification using Firebase's built-in verification
+          if (user && !user.emailVerified) {
+            // User exists but email not verified, sign them out
+            await signOut();
+            router.push('/login?message=Please verify your email before logging in.');
+            return;
           }
         }
       }

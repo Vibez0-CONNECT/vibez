@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -53,13 +52,14 @@ export default function SignupPage() {
     useCreateUserWithEmailAndPassword(auth);
   const [updateProfile] = useUpdateProfile(auth);
   const [signInWithGoogle, , googleLoading] = useSignInWithGoogle(auth);
-  
+
   // Email verification states
   const [showVerification, setShowVerification] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [verificationEmail, setVerificationEmail] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false); // New state
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -78,7 +78,7 @@ export default function SignupPage() {
       if (success) {
         setVerificationEmail(email);
         setShowVerification(true);
-        
+
         toast({
           title: 'Verification code sent',
           description: 'Please check your email for the verification code.',
@@ -143,11 +143,12 @@ export default function SignupPage() {
   };
 
   const createAccountAfterVerification = async (values: z.infer<typeof formSchema>) => {
+    setIsCreatingAccount(true); // Set to true when starting account creation
     try {
       const res = await createUserWithEmailAndPassword(verificationEmail, values.password);
       if (res) {
         await updateProfile(res.user, { displayName: values.name });
-        
+
         // Create user document first (without devices - handled securely by device API)
         const userDocRef = doc(db, 'users', res.user.uid);
         await setDoc(userDocRef, {
@@ -198,7 +199,7 @@ export default function SignupPage() {
         variant: 'destructive',
       });
     } finally {
-      setIsVerifying(false);
+      setIsCreatingAccount(false); // Set to false when done
     }
   };
 
@@ -211,11 +212,11 @@ export default function SignupPage() {
       provider.setCustomParameters({
         prompt: 'select_account'
       });
-      
+
       console.log('Starting Google signup...');
       const result = await signInWithPopup(auth, provider);
       console.log('Google signup result:', result);
-      
+
       if (result?.user) {
         const userDocRef = doc(db, 'users', result.user.uid);
         const userDoc = await getDoc(userDocRef);
@@ -254,7 +255,7 @@ export default function SignupPage() {
           title: 'Welcome!',
           description: 'Successfully signed up with Google.',
         });
-        
+
         router.push('/');
       }
     } catch (error: any) {
@@ -314,7 +315,7 @@ export default function SignupPage() {
                 className="text-center text-lg tracking-widest"
               />
             </div>
-            
+
             <Button 
               onClick={handleVerifyCode} 
               disabled={isVerifying || !verificationCode.trim()}
@@ -375,7 +376,7 @@ export default function SignupPage() {
                   <FormItem className="grid gap-2">
                     <FormLabel>Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="Your Name" {...field} disabled={loading || isSendingCode} />
+                      <Input placeholder="Your Name" {...field} disabled={loading || isCreatingAccount} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -392,7 +393,7 @@ export default function SignupPage() {
                         type="email"
                         placeholder="m@example.com"
                         {...field}
-                        disabled={loading || isSendingCode}
+                        disabled={loading || isCreatingAccount}
                       />
                     </FormControl>
                     <FormMessage />
@@ -406,7 +407,7 @@ export default function SignupPage() {
                   <FormItem className="grid gap-2">
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} disabled={loading || isSendingCode}/>
+                      <Input type="password" {...field} disabled={loading || isCreatingAccount}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -414,7 +415,7 @@ export default function SignupPage() {
               />
             </CardContent>
             <CardFooter className="flex flex-col gap-4">
-              <Button className="w-full" type="submit" disabled={loading || googleLoading || isSendingCode}>
+              <Button className="w-full" type="submit" disabled={loading || googleLoading || isCreatingAccount}>
                 {isSendingCode ? (
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -429,7 +430,7 @@ export default function SignupPage() {
                   'Create account'
                 )}
               </Button>
-              
+
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
@@ -446,7 +447,7 @@ export default function SignupPage() {
                 variant="outline"
                 className="w-full"
                 onClick={handleGoogleSignup}
-                disabled={loading || googleLoading || isSendingCode}
+                disabled={loading || googleLoading || isCreatingAccount}
               >
                 {googleLoading ? (
                   <div className="flex items-center gap-2">
@@ -477,17 +478,17 @@ export default function SignupPage() {
                   </>
                 )}
               </Button>
-              
+
               <div className="text-center text-sm text-muted-foreground">
                 Already have an account?{' '}
                 <Link
                   href="/login"
                   className={cn(
                     "font-medium text-primary underline-offset-4 hover:underline",
-                    (loading || googleLoading || isSendingCode) && "pointer-events-none opacity-50"
+                    (loading || googleLoading || isCreatingAccount) && "pointer-events-none opacity-50"
                   )}
-                  aria-disabled={loading || googleLoading || isSendingCode}
-                  tabIndex={(loading || googleLoading || isSendingCode) ? -1 : undefined}
+                  aria-disabled={loading || googleLoading || isCreatingAccount}
+                  tabIndex={(loading || googleLoading || isCreatingAccount) ? -1 : undefined}
                 >
                   Login
                 </Link>

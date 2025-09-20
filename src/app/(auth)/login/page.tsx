@@ -170,33 +170,22 @@ export default function LoginPage() {
     }
 
     try {
-      // Use our custom email service for password reset
-      const response = await fetch('/api/verify-email?action=reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const result = await response.json();
-      
-      if (result.success) {
-        toast({
-          title: 'Password reset code sent',
-          description: result.message || 'Check your email for your 6-digit password reset code.',
-        });
-      } else {
-        toast({
-          title: 'Error sending reset code',
-          description: result.error || 'Failed to send password reset code. Please try again.',
-          variant: 'destructive',
-        });
-      }
-    } catch (error: any) {
+      await sendPasswordResetEmail(auth, email);
       toast({
-        title: 'Error sending reset code',
-        description: 'Failed to send password reset code. Please try again.',
+        title: 'Password reset email sent',
+        description: 'Check your email for instructions to reset your password.',
+      });
+    } catch (error: any) {
+      console.error('Password reset error:', error);
+      let errorMessage = 'Failed to send password reset email. Please try again.';
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email address.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      }
+      toast({
+        title: 'Error',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
