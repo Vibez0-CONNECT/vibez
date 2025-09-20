@@ -48,10 +48,6 @@ args = "npm run dev"
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 40505
-externalPort = 3001
-
 [deployment]
 deploymentTarget = "autoscale"
 run = ["npm", "start"]
