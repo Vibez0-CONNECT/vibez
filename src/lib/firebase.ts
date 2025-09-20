@@ -18,46 +18,6 @@ const firebaseConfig = {
 
 // Validate required Firebase config
 const requiredConfig = ['apiKey', 'authDomain', 'projectId', 'appId'];
-
-// Log config for debugging
-console.log('Firebase config loading:', {
-  hasApiKey: !!firebaseConfig.apiKey,
-  hasAuthDomain: !!firebaseConfig.authDomain,
-  hasProjectId: !!firebaseConfig.projectId,
-  authDomain: firebaseConfig.authDomain,
-  currentDomain: typeof window !== 'undefined' ? window.location.hostname : 'server',
-  apiKeyPrefix: firebaseConfig.apiKey?.substring(0, 5) + 'S'
-});
-
-// Initialize Firebase
-let app;
-try {
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  console.log('Firebase app initialized successfully');
-} catch (error) {
-  console.error('Firebase initialization error:', error);
-  throw error;
-}
-
-// Initialize Firebase Auth
-export const auth = getAuth(app);
-
-// Initialize Firestore
-export const db = getFirestore(app);
-
-// Initialize Storage
-export const storage = getStorage(app);
-
-// Configure auth for Replit environment
-if (typeof window !== 'undefined') {
-  const currentDomain = window.location.hostname;
-  console.log('Current domain:', currentDomain);
-  console.log('Current origin:', window.location.origin);
-  
-  if (currentDomain.includes('replit.dev') || currentDomain.includes('repl.co') || currentDomain.includes('spock.replit.dev')) {
-    console.log('Running on Replit domain, auth should work automatically');
-  }
-}
 const missingConfig = requiredConfig.filter(key => !firebaseConfig[key as keyof typeof firebaseConfig]);
 
 if (missingConfig.length > 0) {

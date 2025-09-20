@@ -10,25 +10,14 @@ export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  console.log('[Home] Auth state - loading:', loading, 'user:', user ? 'logged in' : 'not logged in');
-
   useEffect(() => {
-    console.log('[Home] Auth effect - loading:', loading, 'user:', user ? 'logged in' : 'not logged in');
-    
-    // Add a small delay before redirecting to prevent rapid redirects
     if (!loading && !user) {
-      const timeoutId = setTimeout(() => {
-        console.log('[Home] Redirecting to login');
-        router.push('/login');
-      }, 100);
-      
-      return () => clearTimeout(timeoutId);
+      router.push('/login');
     }
   }, [user, loading, router]);
 
   // Show loading state while checking auth
   if (loading) {
-    console.log('[Home] Showing loading state');
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -41,16 +30,8 @@ export default function Home() {
 
   // Don't render anything if no user (redirect will happen)
   if (!user) {
-    console.log('[Home] No user, waiting for redirect');
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-muted-foreground">Redirecting to login...</p>
-        </div>
-      </div>
-    );
+    return null;
   }
-
-  console.log('[Home] Rendering ChatLayout');
+  
   return <ChatLayout />;
 }
