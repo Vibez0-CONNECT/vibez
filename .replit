@@ -2,6 +2,7 @@ modules = ["nodejs-20", "web", "nix"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["undollar"]
 
 [agent]
 expertMode = true
@@ -49,7 +50,7 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 43801
+localPort = 41083
 externalPort = 3000
 
 [deployment]

@@ -45,93 +45,62 @@ function isRateLimited(identifier: string): boolean {
   return false;
 }
 
-async function sendEmailDirectly(to: string, subject: string, html: string, text: string): Promise<boolean> {
+// Use proper Replit Mail service
+async function sendEmailDirectly(to: string, subject: string, html: string, text: string): Promise<{ success: boolean; message?: string }> {
   try {
-    // Try different email service endpoints
-    const endpoints = [
-      'https://replmail.replit.com/send',
-      'https://api.replit.com/v1/emails/send',
-      'https://replit.com/data/emails/send'
-    ];
-
-    // Get auth tokens
-    const tokens = [
-      process.env.NEXT_PUBLIC_REPLIT_AUTH_TOKEN,
-      process.env.REPL_IDENTITY,
-      process.env.REPL_RENEWAL,
-      process.env.REPLIT_TOKEN
-    ].filter(Boolean);
-
-    if (tokens.length === 0) {
-      console.error('No authentication token available for email service');
-      // For development, simulate email sending
-      console.log('SIMULATED EMAIL SEND:');
+    // Try to use the sendEmail function from replitmail.ts
+    const { sendEmail } = await import('@/utils/replitmail');
+    
+    try {
+      const result = await sendEmail({
+        to: to,
+        subject: subject,
+        text: text,
+        html: html,
+      });
+      
+      console.log('Email sent successfully to:', to, 'Message ID:', result.messageId);
+      return { success: true };
+    } catch (error) {
+      console.error('Replit Mail service error:', error);
+      
+      // In development, log the verification code for testing
+      if (process.env.NODE_ENV === 'development') {
+        console.log('\n=== EMAIL VERIFICATION CODE (For Development Testing) ===');
+        console.log('To:', to);
+        console.log('Subject:', subject);
+        console.log('Content:', text);
+        console.log('========================================================\n');
+        return { success: true, message: 'Development mode - code logged to console' };
+      }
+      
+      return { success: false, message: 'Email service unavailable' };
+    }
+  } catch (importError) {
+    console.error('Error importing sendEmail:', importError);
+    
+    // Fallback for development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('\n=== EMAIL VERIFICATION CODE (Fallback) ===');
       console.log('To:', to);
       console.log('Subject:', subject);
       console.log('Content:', text);
-      return true; // Return true to allow development to continue
+      console.log('==========================================\n');
+      return { success: true, message: 'Development mode - code logged to console' };
     }
-
-    // Try each endpoint with each token
-    for (const endpoint of endpoints) {
-      for (const token of tokens) {
-        try {
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-              'User-Agent': 'Vibez-App/1.0',
-            },
-            body: JSON.stringify({
-              to,
-              subject,
-              html,
-              text,
-              from: 'noreply@vibez.app'
-            }),
-            timeout: 10000 // 10 second timeout
-          });
-
-          if (response.ok) {
-            console.log(`Email sent successfully via ${endpoint}`);
-            return true;
-          }
-          
-          const errorText = await response.text().catch(() => 'Unknown error');
-          console.log(`${endpoint} failed with status ${response.status}: ${errorText}`);
-        } catch (error) {
-          console.log(`${endpoint} failed with error:`, error.message);
-          continue;
-        }
-      }
-    }
-
-    // If all endpoints fail, simulate email for development
-    console.log('All email endpoints failed. SIMULATING EMAIL SEND FOR DEVELOPMENT:');
-    console.log('To:', to);
-    console.log('Subject:', subject);
-    console.log('Content:', text);
-    return true; // Return true to allow development to continue
-
-  } catch (error) {
-    console.error('Error in sendEmailDirectly:', error);
-    // Simulate email for development
-    console.log('SIMULATED EMAIL SEND (due to error):');
-    console.log('To:', to);
-    console.log('Subject:', subject);
-    return true;
+    
+    return { success: false, message: 'Email service error' };
   }
 }
 
-async function sendVerificationCode(email: string, clientIP: string): Promise<boolean> {
+async function sendVerificationCode(email: string, clientIP: string): Promise<{ success: boolean; message?: string }> {
   try {
     // Rate limiting per email and IP
     const emailKey = `email:${email}`;
     const ipKey = `ip:${clientIP}`;
     
     if (isRateLimited(emailKey) || isRateLimited(ipKey)) {
-      return false;
+      return { success: false, message: 'Rate limit exceeded' };
     }
 
     const code = generateVerificationCode();
@@ -163,14 +132,15 @@ async function sendVerificationCode(email: string, clientIP: string): Promise<bo
 
     const text = `Welcome to Vibez! Your verification code is: ${code}. This code will expire in 10 minutes.`;
 
-    return await sendEmailDirectly(email, 'Vibez - Email Verification Code', html, text);
+    const emailResult = await sendEmailDirectly(email, 'Vibez - Email Verification Code', html, text);
+    return emailResult;
   } catch (error) {
     console.error('Error sending verification code:', error);
-    return false;
+    return { success: false, message: 'Failed to send verification code' };
   }
 }
 
-async function sendPasswordResetEmail(email: string): Promise<boolean> {
+async function sendPasswordResetEmail(email: string): Promise<{ success: boolean; message?: string }> {
   try {
     const resetCode = generateVerificationCode();
     const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutes for password reset
@@ -200,10 +170,11 @@ async function sendPasswordResetEmail(email: string): Promise<boolean> {
 
     const text = `Password reset code for Vibez: ${resetCode}. This code will expire in 30 minutes.`;
 
-    return await sendEmailDirectly(email, 'Vibez - Password Reset Code', html, text);
+    const emailResult = await sendEmailDirectly(email, 'Vibez - Password Reset Code', html, text);
+    return emailResult;
   } catch (error) {
     console.error('Error sending password reset email:', error);
-    return false;
+    return { success: false, message: 'Failed to send password reset email' };
   }
 }
 
@@ -267,16 +238,16 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const success = await sendVerificationCode(parseResult.data.email, clientIP);
+      const result = await sendVerificationCode(parseResult.data.email, clientIP);
       
-      if (!success) {
+      if (!result.success) {
         return NextResponse.json(
-          { success: false, error: 'Failed to send email. Please try again.' },
+          { success: false, error: result.message || 'Failed to send email. Please try again.' },
           { status: 500 }
         );
       }
       
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, message: result.message });
     }
 
     if (action === 'verify') {
@@ -307,9 +278,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const success = await sendPasswordResetEmail(parseResult.data.email);
+      const result = await sendPasswordResetEmail(parseResult.data.email);
       
-      return NextResponse.json({ success });
+      return NextResponse.json({ 
+        success: result.success, 
+        message: result.message,
+        error: result.success ? undefined : result.message 
+      });
     }
 
     return NextResponse.json(

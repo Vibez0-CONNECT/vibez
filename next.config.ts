@@ -10,15 +10,8 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   /* config options here */
-  // Allow cross-origin requests from Replit domains
-  allowedDevOrigins: [
-    '*.replit.dev',
-    '*.replit.co', 
-    '*.repl.co',
-    '*.replit.app',
-    'localhost',
-    '127.0.0.1'
-  ],
+  // Enable cross-origin for Replit environment
+  crossOrigin: 'anonymous',
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -30,12 +23,19 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/(.*)',
-        headers: [
-          {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN',
-          },
-        ],
+        headers: process.env.NODE_ENV === 'development' 
+          ? [
+              {
+                key: 'Content-Security-Policy',
+                value: 'frame-ancestors *.replit.dev *.replit.co *.repl.co *.replit.app *.spock.replit.dev;',
+              },
+            ]
+          : [
+              {
+                key: 'X-Frame-Options',
+                value: 'SAMEORIGIN',
+              },
+            ],
       },
     ];
   },

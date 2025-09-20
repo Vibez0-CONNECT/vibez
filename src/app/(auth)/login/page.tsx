@@ -144,18 +144,20 @@ export default function LoginPage() {
       if (result.success) {
         toast({
           title: 'Password reset code sent',
-          description: 'Check your email for your 6-digit password reset code.',
+          description: result.message || 'Check your email for your 6-digit password reset code.',
         });
       } else {
         toast({
-          title: 'Password reset code sent',
-          description: 'If an account exists with this email, you will receive a reset code.',
+          title: 'Error sending reset code',
+          description: result.error || 'Failed to send password reset code. Please try again.',
+          variant: 'destructive',
         });
       }
     } catch (error: any) {
       toast({
-        title: 'Password reset code sent',
-        description: 'If an account exists with this email, you will receive a reset code.',
+        title: 'Error sending reset code',
+        description: 'Failed to send password reset code. Please try again.',
+        variant: 'destructive',
       });
     }
   };
