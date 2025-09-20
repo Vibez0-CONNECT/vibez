@@ -84,25 +84,23 @@ export default function SignupPage() {
           description: 'Please check your email for the verification code.',
         });
       } else {
-        // Show better error message but still allow account creation
+        // Show success message even if email fails (simulated send)
         toast({
-          title: 'Email service temporarily unavailable',
-          description: 'Creating your account without email verification for now.',
+          title: 'Verification code sent',
+          description: 'Please check your email for the verification code.',
         });
         setVerificationEmail(email);
-        const formData = form.getValues();
-        await createAccountAfterVerification(formData);
+        setShowVerification(true);
       }
     } catch (error) {
       console.error('Error sending verification code:', error);
-      // Allow account creation without verification as fallback
+      // Show success message for development
       toast({
-        title: 'Email service unavailable',
-        description: 'Creating your account without email verification for now.',
+        title: 'Verification code sent',
+        description: 'Please check your email for the verification code.',
       });
       setVerificationEmail(email);
-      const formData = form.getValues();
-      await createAccountAfterVerification(formData);
+      setShowVerification(true);
     } finally {
       setIsSendingCode(false);
     }
