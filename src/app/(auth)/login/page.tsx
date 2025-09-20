@@ -58,14 +58,20 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    console.log('Login attempt for email:', values.email);
     try {
       const res = await signInWithEmailAndPassword(values.email, values.password);
+      console.log('Sign in result:', res);
+      
       if (res) {
+        console.log('User signed in successfully:', res.user.uid);
+        
         // Ensure user document exists with minimal data (devices handled by secure API)
         const userDocRef = doc(db, 'users', res.user.uid);
         const userDoc = await getDoc(userDocRef);
         
         if (!userDoc.exists()) {
+          console.log('Creating new user document');
           // Create minimal user document if it doesn't exist
           await setDoc(userDocRef, {
             uid: res.user.uid,
@@ -86,6 +92,7 @@ export default function LoginPage() {
             updatedAt: serverTimestamp(),
           });
         } else {
+          console.log('Updating existing user status');
           // Update status for existing user
           await updateDoc(userDocRef, {
             status: 'online',
@@ -94,24 +101,57 @@ export default function LoginPage() {
         }
 
         // Register device securely after login
-        const deviceResult = await registerDeviceSecurely(res.user);
-        if (!deviceResult.success) {
-          console.warn('Device registration failed:', deviceResult.error);
-          // Continue anyway - device registration failure shouldn't block login
+        try {
+          const deviceResult = await registerDeviceSecurely(res.user);
+          if (!deviceResult.success) {
+            console.warn('Device registration failed:', deviceResult.error);
+            // Continue anyway - device registration failure shouldn't block login
+          }
+        } catch (deviceError) {
+          console.warn('Device registration error (continuing anyway):', deviceError);
         }
 
+        console.log('Login successful, redirecting to home');
         router.push('/');
       }
     } catch (e: any) {
         console.error("Login submission error:", e);
+        console.error("Error code:", e.code);
+        console.error("Error message:", e.message);
+        
         let errorMessage = 'An unexpected error occurred. Please try again.';
-        if (e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
-            errorMessage = 'Invalid credentials. Please check your email and password.';
-        } else if (e.message) {
-            errorMessage = e.message;
+        
+        // Handle specific Firebase auth error codes
+        switch (e.code) {
+          case 'auth/user-not-found':
+            errorMessage = 'No account found with this email address. Please check your email or sign up for a new account.';
+            break;
+          case 'auth/wrong-password':
+            errorMessage = 'Incorrect password. Please check your password and try again.';
+            break;
+          case 'auth/invalid-credential':
+            errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Please enter a valid email address.';
+            break;
+          case 'auth/user-disabled':
+            errorMessage = 'This account has been disabled. Please contact support.';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Too many failed login attempts. Please try again later or reset your password.';
+            break;
+          case 'auth/network-request-failed':
+            errorMessage = 'Network error. Please check your internet connection and try again.';
+            break;
+          default:
+            if (e.message) {
+              errorMessage = e.message;
+            }
         }
+        
         toast({
-            title: 'Error logging in',
+            title: 'Login Failed',
             description: errorMessage,
             variant: 'destructive',
         });
@@ -236,19 +276,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (error) {
-      let errorMessage = 'An unexpected error occurred. Please try again.';
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = 'Invalid credentials. Please check your email and password.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      toast({
-        title: 'Error logging in',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      console.error('Firebase auth hook error:', error);
+      // Error handling is now done in onSubmit for better control
     }
-  }, [error, toast]);
+  }, [error]);
 
 
   return (

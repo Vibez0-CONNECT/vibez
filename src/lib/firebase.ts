@@ -55,6 +55,7 @@ if (typeof window !== 'undefined') {
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+console.log('Firebase app initialized successfully');
 
 // Initialize Firebase Auth with better domain handling
 export const auth = getAuth(app);
