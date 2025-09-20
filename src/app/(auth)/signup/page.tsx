@@ -84,11 +84,10 @@ export default function SignupPage() {
           description: 'Please check your email for the verification code.',
         });
       } else {
-        // Fallback: Skip verification in development
-        console.warn('Email verification failed, proceeding without verification');
+        // Show better error message but still allow account creation
         toast({
-          title: 'Notice',
-          description: 'Email verification is temporarily unavailable. Creating account directly.',
+          title: 'Email service temporarily unavailable',
+          description: 'Creating your account without email verification for now.',
         });
         setVerificationEmail(email);
         const formData = form.getValues();
@@ -96,10 +95,10 @@ export default function SignupPage() {
       }
     } catch (error) {
       console.error('Error sending verification code:', error);
-      // Fallback: Skip verification in development
+      // Allow account creation without verification as fallback
       toast({
-        title: 'Notice',
-        description: 'Email verification is temporarily unavailable. Creating account directly.',
+        title: 'Email service unavailable',
+        description: 'Creating your account without email verification for now.',
       });
       setVerificationEmail(email);
       const formData = form.getValues();

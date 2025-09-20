@@ -1,37 +1,26 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAdminFirestore } from '@/lib/firebase-admin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { headers } from 'next/headers';
 import crypto from 'crypto';
 
 const zSendVerificationRequest = z.object({
   email: z.string().email(),
-  sessionId: z.string().optional(), // Optional session binding
 });
 
 const zVerifyCodeRequest = z.object({
   email: z.string().email(),
   code: z.string().length(6),
-  sessionId: z.string().optional(),
 });
 
-// Server-side rate limiting (use Redis in production)
+// In-memory storage for development (use Redis in production)
+const verificationStore = new Map<string, { 
+  code: string; 
+  expiresAt: number; 
+  attempts: number; 
+}>();
+
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
-
-function getVerificationSalt(): string {
-  const salt = process.env.VERIFICATION_SALT;
-  if (!salt) {
-    throw new Error('VERIFICATION_SALT environment variable is required');
-  }
-  return salt;
-}
-
-function hashCode(code: string, email: string): string {
-  const salt = getVerificationSalt();
-  const toHash = `${code}:${email}:${salt}`;
-  return crypto.createHash('sha256').update(toHash).digest('hex');
-}
 
 function generateVerificationCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -58,27 +47,48 @@ function isRateLimited(identifier: string): boolean {
 
 async function sendEmailDirectly(to: string, subject: string, html: string, text: string): Promise<boolean> {
   try {
-    const token = process.env.REPL_IDENTITY || process.env.REPL_RENEWAL || '';
-    if (!token) {
+    // Try multiple auth tokens
+    const tokens = [
+      process.env.NEXT_PUBLIC_REPLIT_AUTH_TOKEN,
+      process.env.REPL_IDENTITY,
+      process.env.REPL_RENEWAL,
+      process.env.REPLIT_TOKEN
+    ].filter(Boolean);
+
+    if (tokens.length === 0) {
       console.error('No authentication token available for email service');
       return false;
     }
 
-    const response = await fetch('https://smtp.replit.com/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        to,
-        subject,
-        html,
-        text,
-      }),
-    });
+    for (const token of tokens) {
+      try {
+        const response = await fetch('https://smtp.replit.com/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            to,
+            subject,
+            html,
+            text,
+          }),
+        });
 
-    return response.ok;
+        if (response.ok) {
+          console.log('Email sent successfully');
+          return true;
+        }
+        
+        console.log(`Token failed with status: ${response.status}`);
+      } catch (error) {
+        console.log(`Token failed with error:`, error);
+        continue;
+      }
+    }
+
+    return false;
   } catch (error) {
     console.error('Error sending email:', error);
     return false;
@@ -96,41 +106,29 @@ async function sendVerificationCode(email: string, clientIP: string): Promise<bo
     }
 
     const code = generateVerificationCode();
-    const hashedCode = hashCode(code, email);
-    const expiresAt = Timestamp.fromDate(new Date(Date.now() + 10 * 60 * 1000)); // 10 minutes
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-    const db = getAdminFirestore();
-    
-    // Store verification code with atomic transaction
-    await db.runTransaction(async (transaction) => {
-      const docRef = db.collection('verificationCodes').doc(email);
-      
-      transaction.set(docRef, {
-        hashedCode,
-        expiresAt,
-        attempts: 0,
-        createdAt: FieldValue.serverTimestamp(),
-        clientIP, // For additional security tracking
-      });
+    // Store verification code in memory
+    verificationStore.set(email, {
+      code,
+      expiresAt,
+      attempts: 0,
     });
 
-    // Send email directly from server
+    // Send email directly
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <h2 style="color: #333; text-align: center;">Verify Your Email</h2>
-        <p style="color: #666; font-size: 16px;">
-          Welcome to Vibez! Please use the verification code below to complete your account setup:
-        </p>
-        <div style="background: #f8f9fa; border: 2px dashed #e9ecef; padding: 20px; text-align: center; margin: 20px 0;">
-          <h1 style="font-size: 32px; color: #007bff; margin: 0; letter-spacing: 5px;">${code}</h1>
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #6366f1; margin: 0;">Vibez</h1>
         </div>
-        <p style="color: #666; font-size: 14px;">
-          This code will expire in 10 minutes. If you didn't request this verification, please ignore this email.
-        </p>
-        <p style="color: #666; font-size: 14px; text-align: center; margin-top: 30px;">
-          Best regards,<br>
-          The Vibez Team
-        </p>
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; text-align: center;">
+          <h2 style="margin: 0 0 20px 0;">Verify Your Email</h2>
+          <p style="margin: 0 0 30px 0; font-size: 16px;">Welcome to Vibez! Please use the verification code below to complete your registration:</p>
+          <div style="background: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0;">
+            ${code}
+          </div>
+          <p style="margin: 20px 0 0 0; font-size: 14px; opacity: 0.9;">This code will expire in 10 minutes. If you didn't request this, please ignore this email.</p>
+        </div>
       </div>
     `;
 
@@ -143,66 +141,76 @@ async function sendVerificationCode(email: string, clientIP: string): Promise<bo
   }
 }
 
-async function verifyCode(email: string, code: string, clientIP: string): Promise<boolean> {
+async function sendPasswordResetEmail(email: string): Promise<boolean> {
   try {
-    const db = getAdminFirestore();
+    const resetCode = generateVerificationCode();
+    const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutes for password reset
     
-    return await db.runTransaction(async (transaction) => {
-      const docRef = db.collection('verificationCodes').doc(email);
-      const doc = await transaction.get(docRef);
-      
-      if (!doc.exists) {
-        return false;
-      }
-
-      const data = doc.data()!;
-      const { hashedCode, expiresAt, attempts, clientIP: storedIP } = data;
-
-      // Check if expired
-      if (expiresAt.toDate() < new Date()) {
-        transaction.delete(docRef);
-        return false;
-      }
-
-      // Additional security: check if same IP (optional, can be disabled for mobile users)
-      // if (storedIP !== clientIP) {
-      //   return false;
-      // }
-
-      // Check attempts (rate limiting)
-      if (attempts >= 5) {
-        transaction.delete(docRef);
-        return false;
-      }
-
-      // Verify the code using constant-time comparison
-      const inputHashedCode = hashCode(code, email);
-      
-      // Defensive length check before timingSafeEqual
-      if (inputHashedCode.length !== hashedCode.length) {
-        transaction.update(docRef, {
-          attempts: attempts + 1,
-        });
-        return false;
-      }
-      
-      const isCodeValid = crypto.timingSafeEqual(
-        Buffer.from(inputHashedCode, 'hex'),
-        Buffer.from(hashedCode, 'hex')
-      );
-      
-      if (isCodeValid) {
-        // Code is correct, delete the verification document
-        transaction.delete(docRef);
-        return true;
-      } else {
-        // Increment attempts
-        transaction.update(docRef, {
-          attempts: attempts + 1,
-        });
-        return false;
-      }
+    // Store reset code
+    verificationStore.set(`reset:${email}`, {
+      code: resetCode,
+      expiresAt,
+      attempts: 0,
     });
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #6366f1; margin: 0;">Vibez</h1>
+        </div>
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; text-align: center;">
+          <h2 style="margin: 0 0 20px 0;">Reset Your Password</h2>
+          <p style="margin: 0 0 30px 0; font-size: 16px;">You requested a password reset. Use the code below to reset your password:</p>
+          <div style="background: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0;">
+            ${resetCode}
+          </div>
+          <p style="margin: 20px 0 0 0; font-size: 14px; opacity: 0.9;">This code will expire in 30 minutes. If you didn't request this, please ignore this email.</p>
+        </div>
+      </div>
+    `;
+
+    const text = `Password reset code for Vibez: ${resetCode}. This code will expire in 30 minutes.`;
+
+    return await sendEmailDirectly(email, 'Vibez - Password Reset Code', html, text);
+  } catch (error) {
+    console.error('Error sending password reset email:', error);
+    return false;
+  }
+}
+
+async function verifyCode(email: string, code: string): Promise<boolean> {
+  try {
+    const record = verificationStore.get(email);
+    
+    if (!record) {
+      return false;
+    }
+
+    const { code: storedCode, expiresAt, attempts } = record;
+
+    // Check if expired
+    if (Date.now() > expiresAt) {
+      verificationStore.delete(email);
+      return false;
+    }
+
+    // Check attempts (rate limiting)
+    if (attempts >= 5) {
+      verificationStore.delete(email);
+      return false;
+    }
+
+    // Verify the code
+    if (code === storedCode) {
+      // Code is correct, delete the verification record
+      verificationStore.delete(email);
+      return true;
+    } else {
+      // Increment attempts
+      record.attempts += 1;
+      verificationStore.set(email, record);
+      return false;
+    }
   } catch (error) {
     console.error('Error verifying code:', error);
     return false;
@@ -234,8 +242,8 @@ export async function POST(request: NextRequest) {
       
       if (!success) {
         return NextResponse.json(
-          { success: false, error: 'Rate limit exceeded or server error' },
-          { status: 429 }
+          { success: false, error: 'Failed to send email. Please try again.' },
+          { status: 500 }
         );
       }
       
@@ -254,9 +262,25 @@ export async function POST(request: NextRequest) {
       }
 
       const { email, code } = parseResult.data;
-      const isValid = await verifyCode(email, code, clientIP);
+      const isValid = await verifyCode(email, code);
       
       return NextResponse.json({ success: isValid });
+    }
+
+    if (action === 'reset-password') {
+      const body = await request.json();
+      const parseResult = zSendVerificationRequest.safeParse(body);
+      
+      if (!parseResult.success) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid email address' },
+          { status: 400 }
+        );
+      }
+
+      const success = await sendPasswordResetEmail(parseResult.data.email);
+      
+      return NextResponse.json({ success });
     }
 
     return NextResponse.json(

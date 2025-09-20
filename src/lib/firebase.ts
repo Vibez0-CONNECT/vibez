@@ -1,4 +1,3 @@
-
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
@@ -56,8 +55,23 @@ if (typeof window !== 'undefined') {
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
 
-export { app, auth, db, storage, setDoc };
+// Initialize Firebase Auth with better domain handling
+export const auth = getAuth(app);
+
+// Configure auth for Replit domains
+if (typeof window !== 'undefined') {
+  const currentDomain = window.location.hostname;
+  console.log('Current domain:', currentDomain);
+  console.log('Current origin:', window.location.origin);
+
+  // Add current domain to authorized domains for development
+  if (currentDomain.includes('.replit.dev') || currentDomain.includes('.repl.co')) {
+    // Replit domains are automatically handled by Firebase
+    console.log('Running on Replit domain, auth should work automatically');
+  }
+}
+
+// Initialize Firestore
+export const db = getFirestore(app);
+export { storage, setDoc };

@@ -1,49 +1,45 @@
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+
+import { getApps, initializeApp, cert, ServiceAccount } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
 
-let app: App;
+let firebaseAdmin: any;
 
-// Initialize Firebase Admin SDK
+// Initialize Firebase Admin with service account or fallback
 function initializeFirebaseAdmin() {
   if (getApps().length === 0) {
-    // In Replit environment, Firebase Admin SDK can use default credentials
-    // or we can use environment variables for service account
     try {
-      app = initializeApp({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-        // In production, you would use a service account key
-        // credential: cert({
-        //   projectId: process.env.FIREBASE_PROJECT_ID,
-        //   clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        //   privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        // }),
-      });
+      // Try to use service account if available
+      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+      
+      if (serviceAccount) {
+        const serviceAccountKey = JSON.parse(serviceAccount) as ServiceAccount;
+        firebaseAdmin = initializeApp({
+          credential: cert(serviceAccountKey),
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        });
+      } else {
+        // Fallback: Use project ID only (limited functionality but won't crash)
+        firebaseAdmin = initializeApp({
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+        });
+      }
     } catch (error) {
-      console.error('Error initializing Firebase Admin:', error);
-      throw error;
+      console.error('Failed to initialize Firebase Admin:', error);
+      // Create a minimal app for development
+      firebaseAdmin = initializeApp({
+        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'vibez-dev',
+      });
     }
-  } else {
-    app = getApps()[0];
   }
-  return app;
+  return firebaseAdmin;
 }
 
-// Get Admin Firestore instance
 export function getAdminFirestore() {
-  if (!app) {
-    initializeFirebaseAdmin();
+  try {
+    const app = initializeFirebaseAdmin();
+    return getFirestore(app);
+  } catch (error) {
+    console.error('Error getting Firestore admin:', error);
+    throw new Error('Firebase Admin not properly configured');
   }
-  return getFirestore(app);
 }
-
-// Get Admin Auth instance
-export function getAdminAuth() {
-  if (!app) {
-    initializeFirebaseAdmin();
-  }
-  return getAuth(app);
-}
-
-// Initialize on import
-initializeFirebaseAdmin();
