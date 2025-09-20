@@ -6,12 +6,12 @@ import { useSignInWithEmailAndPassword, useSignInWithGoogle } from 'react-fireba
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import React, { useEffect, useState } from 'react';
-import { doc, runTransaction, serverTimestamp, updateDoc, getDoc, collection, setDoc } from 'firebase/firestore';
+import React, { useState } from 'react';
+import { doc, serverTimestamp, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 import { GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
-import { v4 as uuidv4 } from 'uuid';
 
 import { auth, db } from '@/lib/firebase';
+import { registerDeviceSecurely } from '@/utils/device-auth';
 import { Button } from '@/components/ui/button';
 import {
   CardContent,
@@ -48,17 +48,6 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [signInWithEmailAndPassword, , loading, error] = useSignInWithEmailAndPassword(auth);
   const [signInWithGoogle, , googleLoading] = useSignInWithGoogle(auth);
-  const [deviceId, setDeviceId] = useState('');
-
-  useEffect(() => {
-    // Generate and store a device ID on component mount
-    let id = localStorage.getItem('deviceId');
-    if (!id) {
-      id = uuidv4();
-      localStorage.setItem('deviceId', id);
-    }
-    setDeviceId(id);
-  }, []);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -71,77 +60,45 @@ export default function LoginPage() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       const res = await signInWithEmailAndPassword(values.email, values.password);
-      if (res && deviceId) {
+      if (res) {
+        // Ensure user document exists with minimal data (devices handled by secure API)
         const userDocRef = doc(db, 'users', res.user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          // Create minimal user document if it doesn't exist
+          await setDoc(userDocRef, {
+            uid: res.user.uid,
+            email: res.user.email,
+            name: res.user.displayName || values.email.split('@')[0],
+            photoURL: res.user.photoURL || null,
+            status: 'online',
+            about: '',
+            devices: [], // Will be populated by secure device registration
+            background: 'galaxy',
+            useCustomBackground: true,
+            friends: [],
+            friendRequestsSent: [],
+            friendRequestsReceived: [],
+            blockedUsers: [],
+            mutedConversations: [],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          // Update status for existing user
+          await updateDoc(userDocRef, {
+            status: 'online',
+            updatedAt: serverTimestamp(),
+          });
+        }
 
-        await runTransaction(db, async (transaction) => {
-          const userDoc = await transaction.get(userDocRef);
-
-          const deviceData = {
-            id: deviceId,
-            type: 'web',
-            loggedInAt: new Date(), // Use client time initially
-          };
-
-          if (!userDoc.exists()) {
-            // This case handles users whose document creation failed on signup.
-            // We create their document now with default values.
-            transaction.set(userDocRef, {
-              uid: res.user.uid,
-              email: res.user.email,
-              name: res.user.displayName || values.email.split('@')[0],
-              photoURL: res.user.photoURL || null,
-              status: 'online',
-              about: '',
-              devices: [deviceData],
-              background: 'galaxy',
-              useCustomBackground: true,
-              friends: [],
-              friendRequestsSent: [],
-              friendRequestsReceived: [],
-              blockedUsers: [],
-              mutedConversations: [],
-            });
-          } else {
-            // This handles existing users. We ensure all fields are present.
-            const userData = userDoc.data() as User;
-            let existingDevices = userData.devices || [];
-
-            const otherDevices = existingDevices.filter(d => d.id !== deviceId);
-            const updatedDevices = [...otherDevices, deviceData];
-
-            // This object contains all fields that should exist on a user document.
-            // If any are missing from the existing user, they will be added.
-            const fullUserData = {
-              devices: updatedDevices,
-              status: 'online',
-              friends: userData.friends || [],
-              friendRequestsSent: userData.friendRequestsSent || [],
-              friendRequestsReceived: userData.friendRequestsReceived || [],
-              blockedUsers: userData.blockedUsers || [],
-              mutedConversations: userData.mutedConversations || [],
-              about: userData.about || '',
-              background: userData.background || 'galaxy',
-              useCustomBackground: userData.useCustomBackground !== false,
-              photoURL: userData.photoURL || res.user.photoURL || null,
-              name: userData.name || res.user.displayName || values.email.split('@')[0],
-              email: userData.email || res.user.email,
-            };
-
-            transaction.update(userDocRef, fullUserData);
-          }
-        });
-
-        // Instead of placing serverTimestamp() inside the parent array (unsupported),
-        // create/update a device document under users/{uid}/devices/{deviceId} so we can
-        // safely use serverTimestamp() on a document field.
-        const devicesCol = collection(db, 'users', res.user.uid, 'devices');
-        const deviceDocRef = doc(devicesCol, deviceId);
-        await setDoc(deviceDocRef, {
-          id: deviceId,
-          type: 'web',
-          loggedInAt: serverTimestamp(),
-        });
+        // Register device securely after login
+        const deviceResult = await registerDeviceSecurely(res.user);
+        if (!deviceResult.success) {
+          console.warn('Device registration failed:', deviceResult.error);
+          // Continue anyway - device registration failure shouldn't block login
+        }
 
         router.push('/');
       }
@@ -206,67 +163,46 @@ export default function LoginPage() {
       console.log('Starting Google sign-in...');
       const res = await signInWithPopup(auth, provider);
       console.log('Google sign-in result:', res);
-      if (res && deviceId) {
+      if (res) {
+        // Ensure user document exists with minimal data (devices handled by secure API)
         const userDocRef = doc(db, 'users', res.user.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (!userDoc.exists()) {
+          // Create minimal user document for Google user
+          await setDoc(userDocRef, {
+            uid: res.user.uid,
+            email: res.user.email,
+            name: res.user.displayName || (res.user.email ? res.user.email.split('@')[0] : 'New User'),
+            photoURL: res.user.photoURL || null,
+            status: 'online',
+            about: '',
+            devices: [], // Will be populated by secure device registration
+            background: 'galaxy',
+            useCustomBackground: true,
+            friends: [],
+            friendRequestsSent: [],
+            friendRequestsReceived: [],
+            blockedUsers: [],
+            mutedConversations: [],
+            emailVerified: true, // Google accounts are pre-verified
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          // Update status for existing user
+          await updateDoc(userDocRef, {
+            status: 'online',
+            updatedAt: serverTimestamp(),
+          });
+        }
 
-        await runTransaction(db, async (transaction) => {
-          const userDoc = await transaction.get(userDocRef);
-
-          const deviceData = {
-            id: deviceId,
-            type: 'web',
-            loggedInAt: new Date(), // Use client time initially
-          };
-
-          if (!userDoc.exists()) {
-            transaction.set(userDocRef, {
-              uid: res.user.uid,
-              email: res.user.email,
-              name: res.user.displayName || (res.user.email ? res.user.email.split('@')[0] : 'New User'),
-              photoURL: res.user.photoURL || null,
-              status: 'online',
-              about: '',
-              devices: [deviceData],
-              background: 'galaxy',
-              useCustomBackground: true,
-              friends: [],
-              friendRequestsSent: [],
-              friendRequestsReceived: [],
-              blockedUsers: [],
-              mutedConversations: [],
-            });
-          } else {
-            const userData = userDoc.data() as User;
-            let existingDevices = userData.devices || [];
-            const otherDevices = existingDevices.filter(d => d.id !== deviceId);
-            const updatedDevices = [...otherDevices, deviceData];
-
-            const fullUserData = {
-              devices: updatedDevices,
-              status: 'online',
-              friends: userData.friends || [],
-              friendRequestsSent: userData.friendRequestsSent || [],
-              friendRequestsReceived: userData.friendRequestsReceived || [],
-              blockedUsers: userData.blockedUsers || [],
-              mutedConversations: userData.mutedConversations || [],
-              about: userData.about || '',
-              background: userData.background || 'galaxy',
-              useCustomBackground: userData.useCustomBackground !== false,
-              photoURL: userData.photoURL || res.user.photoURL || null,
-              name: userData.name || res.user.displayName || (res.user.email ? res.user.email.split('@')[0] : 'New User'),
-              email: userData.email || res.user.email,
-            };
-            transaction.update(userDocRef, fullUserData);
-          }
-        });
-
-        const devicesCol = collection(db, 'users', res.user.uid, 'devices');
-        const deviceDocRef = doc(devicesCol, deviceId);
-        await setDoc(deviceDocRef, {
-          id: deviceId,
-          type: 'web',
-          loggedInAt: serverTimestamp(),
-        });
+        // Register device securely after Google login
+        const deviceResult = await registerDeviceSecurely(res.user);
+        if (!deviceResult.success) {
+          console.warn('Device registration failed:', deviceResult.error);
+          // Continue anyway - device registration failure shouldn't block login
+        }
 
         router.push('/');
       }

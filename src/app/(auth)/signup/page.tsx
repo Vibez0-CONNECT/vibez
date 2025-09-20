@@ -13,6 +13,8 @@ import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { auth, db } from '@/lib/firebase';
+import { sendVerificationEmail, verifyEmailCode } from '@/utils/replitmail';
+import { registerDeviceSecurely } from '@/utils/device-auth';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -69,14 +71,8 @@ export default function SignupPage() {
 
   const handleSendVerificationCode = async (email: string) => {
     try {
-      const response = await fetch('/api/verify-email?action=send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const result = await response.json();
-      if (result.success) {
+      const success = await sendVerificationEmail(email);
+      if (success) {
         setVerificationEmail(email);
         setShowVerification(true);
         
@@ -109,17 +105,8 @@ export default function SignupPage() {
 
     setIsVerifying(true);
     try {
-      const response = await fetch('/api/verify-email?action=verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: verificationEmail, 
-          code: verificationCode 
-        }),
-      });
-
-      const result = await response.json();
-      if (result.success) {
+      const isValid = await verifyEmailCode(verificationEmail, verificationCode);
+      if (isValid) {
         // Code is valid, proceed with account creation
         const formData = form.getValues();
         await createAccountAfterVerification(formData);
@@ -148,19 +135,7 @@ export default function SignupPage() {
       if (res) {
         await updateProfile(res.user, { displayName: values.name });
         
-        // Create user document
-        let deviceId = localStorage.getItem('deviceId');
-        if (!deviceId) {
-          deviceId = uuidv4();
-          localStorage.setItem('deviceId', deviceId);
-        }
-
-        const deviceData = {
-          id: deviceId,
-          type: 'web',
-          loggedInAt: new Date(),
-        };
-
+        // Create user document first (without devices - handled securely by device API)
         const userDocRef = doc(db, 'users', res.user.uid);
         await setDoc(userDocRef, {
           uid: res.user.uid,
@@ -169,7 +144,7 @@ export default function SignupPage() {
           photoURL: null,
           status: 'online',
           about: '',
-          devices: [deviceData],
+          devices: [], // Will be populated by secure device registration
           background: 'galaxy',
           useCustomBackground: true,
           friends: [],
@@ -181,6 +156,13 @@ export default function SignupPage() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+
+        // Register device securely after user creation
+        const deviceResult = await registerDeviceSecurely(res.user);
+        if (!deviceResult.success) {
+          console.warn('Device registration failed:', deviceResult.error);
+          // Continue anyway - device registration failure shouldn't block login
+        }
 
         toast({
           title: 'Account created successfully!',
@@ -222,23 +204,11 @@ export default function SignupPage() {
       console.log('Google signup result:', result);
       
       if (result?.user) {
-        let deviceId = localStorage.getItem('deviceId');
-        if (!deviceId) {
-          deviceId = uuidv4();
-          localStorage.setItem('deviceId', deviceId);
-        }
-        
-        const deviceData = {
-          id: deviceId,
-          type: 'web',
-          loggedInAt: new Date(),
-        };
-
         const userDocRef = doc(db, 'users', result.user.uid);
         const userDoc = await getDoc(userDocRef);
 
         if (!userDoc.exists()) {
-          // Create user document for new Google user
+          // Create user document for new Google user (without devices - handled by secure API)
           await setDoc(userDocRef, {
             uid: result.user.uid,
             name: result.user.displayName || 'Google User',
@@ -246,7 +216,7 @@ export default function SignupPage() {
             photoURL: result.user.photoURL,
             status: 'online',
             about: '',
-            devices: [deviceData],
+            devices: [], // Will be populated by secure device registration
             background: 'galaxy',
             useCustomBackground: true,
             friends: [],
@@ -255,16 +225,16 @@ export default function SignupPage() {
             blockedUsers: [],
             mutedConversations: [],
             emailVerified: true, // Google accounts are pre-verified
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
           });
+        }
 
-          // Create device document
-          const devicesCol = collection(db, 'users', result.user.uid, 'devices');
-          const deviceDocRef = doc(devicesCol, deviceId);
-          await setDoc(deviceDocRef, {
-            id: deviceId,
-            type: 'web',
-            loggedInAt: serverTimestamp(),
-          });
+        // Register device securely for both new and existing users
+        const deviceResult = await registerDeviceSecurely(result.user);
+        if (!deviceResult.success) {
+          console.warn('Device registration failed:', deviceResult.error);
+          // Continue anyway - device registration failure shouldn't block login
         }
 
         toast({
