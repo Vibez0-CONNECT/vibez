@@ -10,6 +10,15 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // Allow cross-origin requests from Replit domains
+  allowedDevOrigins: [
+    '*.replit.dev',
+    '*.replit.co', 
+    '*.repl.co',
+    '*.replit.app',
+    'localhost',
+    '127.0.0.1'
+  ],
   typescript: {
     ignoreBuildErrors: true,
   },
