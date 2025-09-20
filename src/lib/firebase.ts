@@ -9,9 +9,9 @@ import { getStorage } from 'firebase/storage';
 // Fallback values for Replit environment
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDemoKey1234567890abcdefghijklmnop",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "vibez-demo.firebaseapp.com",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "vibez-demo"}.firebaseapp.com`,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "vibez-demo",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "vibez-demo.appspot.com",
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "vibez-demo"}.appspot.com`,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:123456789012:web:abcdef1234567890abcdef",
   measurementId: process.env.NEXT_PUBLIC_MEASUREMENT_ID || "G-DEMO123456",

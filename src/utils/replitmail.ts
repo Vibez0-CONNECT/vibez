@@ -24,22 +24,97 @@ export const zSmtpMessage = z.object({
 
 export type SmtpMessage = z.infer<typeof zSmtpMessage>;
 
-// ✅ Accessible in both server + client
-export const AUTH_TOKEN = process.env.NEXT_PUBLIC_REPLIT_AUTH_TOKEN ?? "";
+// Client-side email sending function that calls our secure API route
+export async function sendEmail(message: SmtpMessage): Promise<boolean> {
+  try {
+    const response = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
+    });
 
-function getAuthToken(): string {
-  // Check for environment variables on both server and client side
-  // Store the token as separate chunks to avoid parser issues
-  const tokenChunks = [
-    'v2.public.Q2lRM1ptTmpNVE0zWXkwellqQmlMVFJsTldRdFlqQTVNaTB4TXprME5qUmxaamhpWW1FU0QzbGhaMkZ0YVd4cFoyaDBhM1Z1TVJvRlZrbENSVm9pSkRkbVkyTXhNemRqTFROaU1HSXROR1UxWkMxaU1Ea3lMVEV6T1RRMk5HVm1PR0ppWVRpUjV1Z1BXaE1LQkhCcGEyVVNDMmx1ZEdWeVlXTjBhWFpsMQqde217ItS5EI3-2v1broDMH-fQ67Y302S3A-gKTcIOaogdNXg0JQ6Pppfn0hkpd9qX15kUa1qmhEkIFlQ9DQ',
-    '.R0FFaUJtTnZibTFoYmhLYkNIWXlMbkIxWW14cFl5NVJNbVF6VTFjME5GbFVSalJoTVd4U1kwZFNjVTR5Tlc1VVZrNUZVVmRzTVdFd01XMVNNRXB2VVhwTmVsVklWbXhSV0doMlVUQmtRbFpYUmt0YU1qbHlWR3BLWVdGc2JEWlNXSEJQVFdzeE1GUlVTa3BrTVd4d1RVUkNZVlpHV25KVVJtUktaREE5VlZOWVVrNVdSVEF4Vkd0U1drMUdjRmhYVkZKYVlsVndiMUl5YUVaVk1GRjZZa2RvWVUxcldqQlpWbVEwWTBadmVXRkVRbWhOTVZveFZGWktkbEpyT1V0VFJ6QXlVVlJvYUZGdGJFcFNWMDVJWWtoS1lWVnRPVTlUTW1Rd1kwZEtkVlZ0ZUdwaVZWcHhXa1ZrYzAxc2NGUlRWRVpvWld0c01Wa3dhRmRoVjBwSVlrZHdUV0V3Y0hSV2JHUTBXbTFTYzA5SVpGcGliV2hZVlZSR1FrMXRVbGhsU1ZaV1pXdEtjbFZxUVRGVFZrWnlVMnhhVGxKc2NGTldiWEJQV1ZkU1YySXphRk5pVjJoVFZtcEtiMlJXVmxoa1IzUnBZa1UxV0ZsclZrOVdiVXBWWWtWV1ZtRnJTa2hhUjNoelZteEtkVkpzU2xkV1dFSktWakp3UTJNeFpITlNiR2hvVTBad1UxUlZaRk5STVZwSFdrVmtVbUpWV2tsWGExVjRWVEF4ZEZWcmRGZE5WbHBVVlZSS1NtUXhVbkpoUmtwWFlURndkbFpXV210aU1rcHpWRzVLYVZORldsaFpiWFIzVkRGc1YxVnNaRTVOV0VKSVYydFdNR0ZyTVhKWGJHeFhVbTFvV0ZaRVJtRmtSMVpKWTBaa1YySldTa2xXUmxKTFZESk5lVk5xV2xaaGVteFlWRmQ0UzJJeFdYbE5WRkpVVFd0YVIxUldWbXRXUjBwR1YyeGFXbFo2UlRCWFZscHpUbXhHVlZKdGNHbFNXRUkyVmtSR1YxbFhSWGxUYkd4V1ZrVmFWMWxyV21GamJIQklaVVZhYkZKdVFrWldNakYzWVVkRmVHTkhPVmRoYTFwVVZYcEdUbVZHV25OVGJFWlhVa1ZLTTFZeWRHRlhiVTUwWTBVeFVGZEZOSHBhUlZaYVRsWndSVkpZVW1saVZGWlJWREJrWVZWdFNsaGhSRXBVVWxad2VGWnJWbkprUjFKRllVVndhV0pXY0ZGWFJFbDRWbFV4ZEZsNlVtcFhTRUpHVld0a1ZrNUdXa1ZpUmxKb1RWWktObGR0ZUc5aVYxWnlZbnBDV0ZaVk1UWlhiWE4zWld4a1ZrNVlTbFJXUjFKWlYxZHJkMDVXU25KVmJUbFBZVlJHVEZScVNUVlNSWGh6VTFoa1UyRXhjRzlXYkZaM1RVWmFTRTVYUm1oV01IQldWVzB3TlZkdFNsaFZha3BXWVd0d1VGVXhXazlrVm1SMFVteE9VMlZ0WnpBPQ'
-  ];
-  const defaultToken = tokenChunks.join('');
+    if (!response.ok) {
+      console.error('Failed to send email:', response.statusText);
+      return false;
+    }
 
-  const replIdentity = typeof window !== 'undefined'
-    ? null // Client side - tokens should not be exposed
-    : process.env.REPL_IDENTITY || defaultToken;
+    const result = await response.json();
+    return result.success;
+  } catch (error) {
+    console.error('Error sending email:', error);
+    return false;
+  }
+}
 
-  const webReplRenewal = typeof window !== 'undefined'
-    ? null // Client side - tokens should not be exposed
+// Generate random verification code
+export function generateVerificationCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Send verification email
+export async function sendVerificationEmail(email: string, code: string): Promise<boolean> {
+  const message: SmtpMessage = {
+    to: email,
+    subject: 'Vibez - Email Verification Code',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #333; text-align: center;">Verify Your Email</h2>
+        <p style="color: #666; font-size: 16px;">
+          Welcome to Vibez! Please use the verification code below to complete your account setup:
+        </p>
+        <div style="background: #f8f9fa; border: 2px dashed #e9ecef; padding: 20px; text-align: center; margin: 20px 0;">
+          <h1 style="font-size: 32px; color: #007bff; margin: 0; letter-spacing: 5px;">${code}</h1>
+        </div>
+        <p style="color: #666; font-size: 14px;">
+          This code will expire in 10 minutes. If you didn't request this verification, please ignore this email.
+        </p>
+        <p style="color: #666; font-size: 14px; text-align: center; margin-top: 30px;">
+          Best regards,<br>
+          The Vibez Team
+        </p>
+      </div>
+    `,
+    text: `Welcome to Vibez! Your verification code is: ${code}. This code will expire in 10 minutes.`
+  };
+
+  return await sendEmail(message);
+}
+
+// Send password reset email
+export async function sendPasswordResetEmail(email: string, resetLink: string): Promise<boolean> {
+  const message: SmtpMessage = {
+    to: email,
+    subject: 'Vibez - Password Reset Request',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #333; text-align: center;">Reset Your Password</h2>
+        <p style="color: #666; font-size: 16px;">
+          We received a request to reset your password for your Vibez account. Click the button below to set a new password:
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="background: #007bff; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
+            Reset Password
+          </a>
+        </div>
+        <p style="color: #666; font-size: 14px;">
+          If the button doesn't work, you can copy and paste this link into your browser:
+        </p>
+        <p style="color: #007bff; font-size: 14px; word-break: break-all;">
+          ${resetLink}
+        </p>
+        <p style="color: #666; font-size: 14px;">
+          This link will expire in 1 hour. If you didn't request a password reset, please ignore this email.
+        </p>
+        <p style="color: #666; font-size: 14px; text-align: center; margin-top: 30px;">
+          Best regards,<br>
+          The Vibez Team
+        </p>
+      </div>
+    `,
+    text: `Reset your Vibez password by visiting this link: ${resetLink}. This link will expire in 1 hour.`
+  };
+
+  return await sendEmail(message);
 }

@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import React, { useEffect, useState } from 'react';
 import { doc, runTransaction, serverTimestamp, updateDoc, getDoc, collection, setDoc } from 'firebase/firestore';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 import { auth, db } from '@/lib/firebase';
@@ -158,6 +158,38 @@ export default function LoginPage() {
             description: errorMessage,
             variant: 'destructive',
         });
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const email = form.getValues('email');
+    if (!email) {
+      toast({
+        title: 'Email required',
+        description: 'Please enter your email address first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: 'Password reset email sent',
+        description: 'Check your email for instructions to reset your password.',
+      });
+    } catch (error: any) {
+      let errorMessage = 'Failed to send password reset email. Please try again.';
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'No account found with this email address.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      }
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -320,6 +352,18 @@ export default function LoginPage() {
               <Button className="w-full" type="submit" disabled={loading || googleLoading}>
                 {loading ? 'Logging in...' : 'Login'}
               </Button>
+
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  className="text-sm text-muted-foreground hover:text-primary"
+                  onClick={() => handleForgotPassword()}
+                  disabled={loading || googleLoading}
+                >
+                  Forgot your password?
+                </Button>
+              </div>
 
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">

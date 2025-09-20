@@ -9,11 +9,10 @@ import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import React from 'react';
+import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { auth, db } from '@/lib/firebase';
-import { sendEmail } from '@/utils/replitmail';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -43,10 +42,6 @@ const formSchema = z.object({
     .min(6, { message: 'Password must be at least 6 characters.' }),
 });
 
-// Generate a 6-digit verification code
-const generateVerificationCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
 
 export default function SignupPage() {
   const router = useRouter();
@@ -55,6 +50,12 @@ export default function SignupPage() {
     useCreateUserWithEmailAndPassword(auth);
   const [updateProfile] = useUpdateProfile(auth);
   const [signInWithGoogle, , googleLoading] = useSignInWithGoogle(auth);
+  
+  // Email verification states
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -65,31 +66,144 @@ export default function SignupPage() {
     },
   });
 
-  const sendVerificationEmail = async (email: string, code: string) => {
+
+  const handleSendVerificationCode = async (email: string) => {
     try {
-      await sendEmail({
-        to: email,
-        subject: 'Vibez - Email Verification Code',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #6366f1; margin: 0;">Vibez</h1>
-            </div>
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; text-align: center;">
-              <h2 style="margin: 0 0 20px 0;">Verify Your Email</h2>
-              <p style="margin: 0 0 30px 0; font-size: 16px;">Welcome to Vibez! Please use the verification code below to complete your registration:</p>
-              <div style="background: rgba(255,255,255,0.2); padding: 20px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 20px 0;">
-                ${code}
-              </div>
-              <p style="margin: 20px 0 0 0; font-size: 14px; opacity: 0.9;">This code will expire in 10 minutes. If you didn't request this, please ignore this email.</p>
-            </div>
-          </div>
-        `,
-        text: `Welcome to Vibez! Your verification code is: ${code}\n\nThis code will expire in 10 minutes. If you didn't request this, please ignore this email.`,
+      const response = await fetch('/api/verify-email?action=send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
+
+      const result = await response.json();
+      if (result.success) {
+        setVerificationEmail(email);
+        setShowVerification(true);
+        
+        toast({
+          title: 'Verification code sent',
+          description: 'Please check your email for the verification code.',
+        });
+      } else {
+        throw new Error('Failed to send verification code');
+      }
     } catch (error) {
-      console.error('Error sending verification email:', error);
-      throw error;
+      console.error('Error sending verification code:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to send verification code. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!verificationCode.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter the verification code.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      const response = await fetch('/api/verify-email?action=verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: verificationEmail, 
+          code: verificationCode 
+        }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        // Code is valid, proceed with account creation
+        const formData = form.getValues();
+        await createAccountAfterVerification(formData);
+      } else {
+        toast({
+          title: 'Invalid code',
+          description: 'The verification code is incorrect or has expired. Please try again.',
+          variant: 'destructive',
+        });
+        setIsVerifying(false);
+      }
+    } catch (error) {
+      console.error('Error verifying code:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to verify code. Please try again.',
+        variant: 'destructive',
+      });
+      setIsVerifying(false);
+    }
+  };
+
+  const createAccountAfterVerification = async (values: z.infer<typeof formSchema>) => {
+    try {
+      const res = await createUserWithEmailAndPassword(verificationEmail, values.password);
+      if (res) {
+        await updateProfile(res.user, { displayName: values.name });
+        
+        // Create user document
+        let deviceId = localStorage.getItem('deviceId');
+        if (!deviceId) {
+          deviceId = uuidv4();
+          localStorage.setItem('deviceId', deviceId);
+        }
+
+        const deviceData = {
+          id: deviceId,
+          type: 'web',
+          loggedInAt: new Date(),
+        };
+
+        const userDocRef = doc(db, 'users', res.user.uid);
+        await setDoc(userDocRef, {
+          uid: res.user.uid,
+          name: values.name,
+          email: verificationEmail,
+          photoURL: null,
+          status: 'online',
+          about: '',
+          devices: [deviceData],
+          background: 'galaxy',
+          useCustomBackground: true,
+          friends: [],
+          friendRequestsSent: [],
+          friendRequestsReceived: [],
+          blockedUsers: [],
+          mutedConversations: [],
+          emailVerified: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        toast({
+          title: 'Account created successfully!',
+          description: 'Welcome to Vibez. You are now logged in.',
+        });
+
+        router.push('/');
+      }
+    } catch (error: any) {
+      console.error('Error creating account:', error);
+      let errorMessage = 'Failed to create account. Please try again.';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'An account with this email already exists.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please choose a stronger password.';
+      }
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -172,104 +286,91 @@ export default function SignupPage() {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      // Always use email verification
-      const res = await createUserWithEmailAndPassword(
-        values.email,
-        values.password
-      );
-      
-      if (res) {
-        await updateProfile({ displayName: values.name });
-        
-        let deviceId = localStorage.getItem('deviceId');
-        if (!deviceId) {
-          deviceId = uuidv4();
-          localStorage.setItem('deviceId', deviceId);
-        }
-        
-        const deviceData = {
-          id: deviceId,
-          type: 'web',
-          loggedInAt: new Date(),
-        };
-
-        const userDocRef = doc(db, 'users', res.user.uid);
-
-        // Create user document with emailVerified: false
-        await setDoc(userDocRef, {
-          uid: res.user.uid,
-          name: values.name,
-          email: values.email,
-          photoURL: null,
-          status: 'online',
-          about: '',
-          devices: [deviceData],
-          background: 'galaxy',
-          useCustomBackground: true,
-          friends: [],
-          friendRequestsSent: [],
-          friendRequestsReceived: [],
-          blockedUsers: [],
-          mutedConversations: [],
-          emailVerified: false,
-        });
-
-        // Create device document with server timestamp
-        const devicesCol = collection(db, 'users', res.user.uid, 'devices');
-        const deviceDocRef = doc(devicesCol, deviceId);
-        await setDoc(deviceDocRef, {
-          id: deviceId,
-          type: 'web',
-          loggedInAt: serverTimestamp(),
-        });
-
-        // Generate verification code and send email
-        const verificationCode = generateVerificationCode();
-        
-        try {
-          await sendVerificationEmail(values.email, verificationCode);
-          
-          // Sign out the user so they can't access the app until verified
-          await auth.signOut();
-          
-          toast({
-            title: 'Account Created!',
-            description: 'Please check your email for the verification code.',
-          });
-          
-          // Redirect to verification page with email and code
-          router.push(`/verify-email?email=${encodeURIComponent(values.email)}&code=${verificationCode}`);
-        } catch (emailError) {
-          console.error('Error sending verification email:', emailError);
-          
-          // If email fails, mark user as verified and let them in
-          await updateDoc(userDocRef, {
-            emailVerified: true,
-          });
-          
-          toast({
-            title: 'Account Created!',
-            description: 'Email service unavailable, but your account is ready to use.',
-          });
-          
-          router.push('/');
-        }
-      }
+      // Step 1: Send verification code first, before creating account
+      await handleSendVerificationCode(values.email);
     } catch (error: any) {
-      console.error("Signup error:", error);
-      let errorMessage = 'An unexpected error occurred. Please try again.';
+      console.error('Error in signup:', error);
+      let errorMessage = 'Failed to send verification code. Please try again.';
       if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'This email is already in use. Please log in or use a different email.';
-      } else if (error.message) {
-        errorMessage = error.message;
+        errorMessage = 'An account with this email already exists.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
       }
       toast({
-        title: 'Error creating account',
+        title: 'Error',
         description: errorMessage,
         variant: 'destructive',
       });
     }
   };
+
+  if (showVerification) {
+    return (
+      <>
+        <Toaster />
+        <Card className="bg-transparent border-0 shadow-none">
+          <CardHeader className="space-y-1 text-center">
+            <CardTitle className="text-2xl">Verify Your Email</CardTitle>
+            <CardDescription>
+              We sent a 6-digit code to {verificationEmail}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <label htmlFor="verification-code" className="text-sm font-medium">
+                Verification Code
+              </label>
+              <Input
+                id="verification-code"
+                type="text"
+                placeholder="000000"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                disabled={isVerifying}
+                maxLength={6}
+                className="text-center text-lg tracking-widest"
+              />
+            </div>
+            
+            <Button 
+              onClick={handleVerifyCode} 
+              disabled={isVerifying || !verificationCode.trim()}
+              className="w-full"
+            >
+              {isVerifying ? 'Verifying...' : 'Verify Email'}
+            </Button>
+
+            <div className="text-center space-y-2">
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => handleSendVerificationCode(verificationEmail)}
+                disabled={isVerifying}
+                className="text-sm"
+              >
+                Resend Code
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Didn't receive the code? Check your spam folder.
+              </p>
+            </div>
+
+            <div className="text-center">
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => setShowVerification(false)}
+                disabled={isVerifying}
+                className="text-sm"
+              >
+                ← Back to signup
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>
