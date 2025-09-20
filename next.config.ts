@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Essential for Replit proxy environment
+  experimental: {
+    allowedRevalidateHeaderKeys: ['*'],
+  },
   // Replit environment configuration
   async headers() {
     return [
