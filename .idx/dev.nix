@@ -1,12 +1,9 @@
 # To learn more about how to use Nix to configure your environment
 # see: https://developers.google.com/idx/guides/customize-idx-env
-{
-  pkgs,
-  ...
-}: # This defines the arguments received by the environment configuration
+{ pkgs, ... }:
 {
   # Which nixpkgs channel to use.
-  channel = "stable-24.05"; # or "unstable"
+  channel = "stable-24.05";
 
   # Use https://search.nixos.org/packages to find packages
   packages = [
@@ -20,19 +17,13 @@
   };
 
   idx = {
-    # Search for the extensions you want on https://open-vsx.org/ and use "publisher.id"
-    extensions = [
-      "google.gemini-cli-vscode-ide-companion"
-    ];
-
-    # Enable previews
+    # This is the correct, nested structure for previews.
     previews = {
       enable = true;
       previews = {
+        # You can name this preview anything, e.g., "web"
         web = {
-          # This command starts the Next.js app in the web preview panel.
-          # The $PORT environment variable is provided by the environment and passed directly.
-          command = ["sh" "-c" "PORT=$PORT npm run dev --prefix vibez"];
+          command = ["npm", "run", "dev", "--prefix", "vibez"];
           manager = "web";
         };
       };
@@ -43,9 +34,8 @@
       # Runs when a workspace is first created
       onCreate = {
         npm-install = "npm install --prefix vibez";
-        default.openFiles = [ ".idx/dev.nix" "README.md" ];
       };
-      # The Next.js dev server is now started via the 'previews' command, so this can be empty.
+      # The dev server is started by the preview command.
       onStart = {};
     };
   };
